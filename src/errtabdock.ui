@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ErrTabDock</class>
+ <widget class="QDockWidget" name="ErrTabDock">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>552</width>
+    <height>253</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Error Table</string>
+  </property>
+  <widget class="QWidget" name="dockWidgetContents">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QTableWidget" name="errTabWid">
+      <row>
+       <property name="text">
+        <string>Max Error</string>
+       </property>
+      </row>
+      <row>
+       <property name="text">
+        <string>RMS Error</string>
+       </property>
+      </row>
+      <row>
+       <property name="text">
+        <string>Max Value</string>
+       </property>
+      </row>
+      <row>
+       <property name="text">
+        <string>Min Value</string>
+       </property>
+      </row>
+      <row>
+       <property name="text">
+        <string>Total Variation</string>
+       </property>
+      </row>
+      <column>
+       <property name="text">
+        <string>Method</string>
+       </property>
+      </column>
+      <item row="0" column="0">
+       <property name="text">
+        <string>0.000e-01</string>
+       </property>
+      </item>
+      <item row="1" column="0">
+       <property name="text">
+        <string>0.000e-01</string>
+       </property>
+      </item>
+      <item row="2" column="0">
+       <property name="text">
+        <string>1.00000</string>
+       </property>
+      </item>
+      <item row="3" column="0">
+       <property name="text">
+        <string>-1.00000</string>
+       </property>
+      </item>
+      <item row="4" column="0">
+       <property name="text">
+        <string>4.00000</string>
+       </property>
+      </item>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

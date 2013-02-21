@@ -1,10 +1,7 @@
-project(pde1d)
-cmake_minimum_required(VERSION 2.6)
-find_package(Qt4 REQUIRED)
-
-include_directories(${QT_INCLUDES} ${CMAKE_CURRENT_BINARY_DIR})
-
-set(pde1d_SRCS pde1d.cpp main.cpp)
-qt4_automoc(${pde1d_SRCS})
-add_executable(pde1d ${pde1d_SRCS})
-target_link_libraries(pde1d ${QT_QTCORE_LIBRARY} ${QT_QTGUI_LIBRARY})
+PROJECT(pde1d)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
+FIND_PACKAGE(Qt4 REQUIRED)
+#set(CMAKE_BUILD_TYPE Debug)
+INCLUDE_DIRECTORIES(${QT_INCLUDES} ${CMAKE_CURRENT_BINARY_DIR}/src include resources doc)
+SET(CMAKE_CXX_FLAGS "-g -Wall")
+ADD_SUBDIRECTORY(src)
