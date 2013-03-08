@@ -21,23 +21,75 @@
 #ifndef CONTROLS_H
 #define CONTROLS_H
 
+
+#include <QtCore/QVariant>
+#include <QtGui/QAction>
+#include <QtGui/QApplication>
+#include <QtGui/QButtonGroup>
+#include <QtGui/QCheckBox>
+#include <QtGui/QComboBox>
+#include <QtGui/QDockWidget>
+#include <QtGui/QGridLayout>
+#include <QtGui/QHBoxLayout>
+#include <QtGui/QHeaderView>
+#include <QtGui/QLabel>
+#include <QtGui/QPushButton>
+#include <QtGui/QSpacerItem>
+#include <QtGui/QVBoxLayout>
+#include <QtGui/QWidget>
+
 #include <QtGui/qdockwidget.h>
-#include "ui_controls.h"
+#include "myinputs.h"
 
 
-class Controls : public QDockWidget, public Ui_Controls
+class Controls : public QDockWidget
 {
     Q_OBJECT
 
 public:
-    explicit Controls ( const QString& title = "Controls", QWidget* parent = 0, Qt::WindowFlags flags = 0 );
+    Controls ( const QString& title = "Controls", QWidget* parent = 0, Qt::WindowFlags flags = 0 );
     //Controls();
     Controls ( const Controls& other );
     virtual ~Controls();
     virtual Controls& operator= ( const Controls& other );
     virtual bool operator== ( const Controls& other ) const;
 
+    QWidget *dockWidgetContents;
+    QVBoxLayout *verticalLayout;
+    QLabel *pdeLable;
+    QComboBox *pdeBox;
+    QLabel *solveLabel;
+    QComboBox *addSolvCombo;
+    QLabel *sizeLabel;
+    MyIntInput *intNumberOfPoints;
+    QLabel *cyclesLabel;
+    MyDoubInput *cyclesInput;
+    QGridLayout *gridLayout;
+    QLabel *cflLabel;
+    QLabel *viscLabel;
+    MyDoubInput *cflInput;
+    MyDoubInput *viscInput;
+    QLabel *stepsLabel;
+    QLabel *incrementLabel;
+    MyIntInput *intTimeSteps;
+    MyIntInput *intPlotIncrement;
+    QLabel *label;
+    MyIntInput *plotDelayInput;
+    QPushButton *savePlotButton;
+    QCheckBox *animationCheck;
+    QCheckBox *checkBox;
+    QSpacerItem *verticalSpacer_2;
+    QHBoxLayout *horizontalLayout;
+    QPushButton *resetButton;
+    QPushButton *runButton;
+    QPushButton *stopButton;
+
+    void setupUi(); // setupUi
+
+    void retranslateUi(); // retranslateUi
 
 };
+
+
 
 #endif // CONTROLS_H

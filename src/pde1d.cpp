@@ -6,6 +6,10 @@
 #include "femwidget.h"
 #include "impwidget.h"
 #include "rkwidget.h"
+#include "envwidget.h"
+#include "specwidget.h"
+#include "pswidget.h"
+#include "myinputs.h"
 
 #include <QtGui/QLabel>
 #include <QtGui/QMenu>
@@ -23,19 +27,15 @@
 #include <sstream>
 #include <iomanip>
 
-
+/*! Main window with a qwt plot area and a control dock widget
+*/
 pde1d::pde1d() : QMainWindow(), Ui_MainWindow()
 {
     setupUi ( this );
 
-    N = 100;
-    cycles = 1.0;
-    CFL = 1.0;
-    stop = 100;
-    step = 1;
+
     dockID = 0;
 
-    addSolver ( 0 );
     setCorner(Qt::BottomLeftCorner,Qt::LeftDockWidgetArea);
 
     qwtPlot->setAxisScale ( 0, -1.2, 1.2 );
@@ -46,36 +46,58 @@ pde1d::pde1d() : QMainWindow(), Ui_MainWindow()
     errTab->setFeatures ( QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable );
     addDockWidget ( Qt::BottomDockWidgetArea, errTab );
 
-
     control = new Controls ( tr ( "Controls" ), this );
-    //qwtPlot->setBackgroundRole(QPalette::Base);
-    //alphaLineEdit->setValidator(&qv1);
     connect ( control->addSolvCombo, SIGNAL ( activated ( int ) ), this, SLOT ( addSolver ( int ) ) );
-    //connect ( control->removeSolvCombo, SIGNAL ( activated ( int ) ), this, SLOT ( removeSolver ( int ) ) );
+    control->addSolvCombo->addItem(tr("None"));
+    control->addSolvCombo->addItem(tr("Euler Explicit")); // addSolver(1)
+    control->addSolvCombo->addItem(tr("Least Sqr Plus"));  // addSolver(2)
+    control->addSolvCombo->addItem(tr("Simple Implicit")); // addSolver(3)
+    control->addSolvCombo->addItem(tr("Finite Element Method"));  // addSolver(4)
+    control->addSolvCombo->addItem(tr("General Implicit"));  // addSolver(5)
+    control->addSolvCombo->addItem(tr("Explicit Runge Kutta"));  // addSolver(6)
+    control->addSolvCombo->addItem(tr("Envelope"));  // addSolver(7)
+    control->addSolvCombo->addItem(tr("Spectral FFT"));  // addSolver(8)
+    control->addSolvCombo->addItem(tr("Pseudo Spectral"));  // addSolver(9)
+    control->addSolvCombo->setToolTip(tr("Add a numerical solver"));
+
+    control->pdeBox->addItem( tr("U_t + c U_x = 0"));
+    control->pdeBox->addItem( tr("U_t - d_ U_xx = 0"));
+    control->pdeBox->addItem( tr("U_t+(U^2)_x=0"));
+    control->pdeBox->addItem( tr("U_t+(U^2)_x-d_ U_xx"));
+    connect ( control->pdeBox, SIGNAL( activated(int) ), this, SLOT( setEquation(int) ));
+
+    connect ( control->viscInput, SIGNAL( valueChanged(double)), this, SLOT( setViscosity(double)));
+
     connect ( control->intNumberOfPoints, SIGNAL ( valueChanged ( int ) ), this, SLOT ( setSize ( int ) ) );
-    //cyclesInput->setValue(1.0);
+    control->intNumberOfPoints->setToolTip(tr("The number of points may be restricted"));
     connect ( control->cyclesInput, SIGNAL ( valueChanged ( double ) ), this, SLOT ( setCycles ( double ) ) );
-    //cflInput->setValue(1.0);
+    control->cyclesInput->setToolTip(tr("Positive or negative and may be fractional i.e. 0.25 - Plot scale may change"));
     connect ( control->cflInput, SIGNAL ( valueChanged ( double ) ), this, SLOT ( setCFL ( double ) ) );
-    //connect(alphaLineEdit,SIGNAL(editingFinished()),this,SLOT(setAlpha()));
+    control->cflInput->setToolTip(tr("Positive = right running, many methods require |CFL| < 1.0"));
     connect ( control->intTimeSteps, SIGNAL ( valueChanged ( int ) ), this, SLOT ( setStop ( int ) ) );
     connect ( control->intPlotIncrement, SIGNAL ( valueChanged ( int ) ), this, SLOT ( setStep ( int ) ) );
+    control->intPlotIncrement->setToolTip(tr("Plot incement = # points / CFL optional / cycles will stobe exact solution"));
     connect ( control->savePlotButton, SIGNAL ( clicked ( bool ) ), this, SLOT ( saveImage() ) );
+    control->savePlotButton->setToolTip(tr("Saves the main window including plot to a .png file"));
     //connect ( control->plotDelayInput,SIGNAL( valueChanged ( int ) , this, SLOT( ..... ));
     connect ( control->resetButton, SIGNAL ( clicked ( bool ) ), this, SLOT ( reset() ) );
+    control->resetButton->setToolTip(tr("Restart simulation at initial condition"));
     connect ( control->runButton, SIGNAL ( clicked ( bool ) ), this, SLOT ( run() ) );
+    control->runButton->setToolTip(tr("Begin the simulation"));
     connect ( control->stopButton, SIGNAL ( clicked ( bool ) ), this, SLOT ( stopRun() ) );
+    control->stopButton->setToolTip(tr("Stop the simulations at current step"));
     setTabPosition(Qt::LeftDockWidgetArea |Qt::RightDockWidgetArea, QTabWidget::West);
     control->setFeatures ( QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable );
     addDockWidget ( Qt::LeftDockWidgetArea, control );
     replot ( "Initial Condition" );
     savePlot ( "Initial.png" );
-
-
-    //lw->setup();
-    //void setup(const size_t size=100,const double cycles=1.0,const double waveSpeed =1.0,const double cfl =1.0,const double alpha=0.5);
-    // size, cycles,  CFL
-
+    N_ = 100;
+    cycles = 1.0;
+    CFL = 1.0;
+    stop = 100;
+    step = 1;
+    equation = 0;
+    visc = 0.001;
 }
 
 pde1d::~pde1d()
@@ -89,15 +111,17 @@ void pde1d::replot ( const char * title )
     qwtPlot->insertLegend ( new QwtLegend(), QwtPlot::BottomLegend );
 
     QwtPlotCurve *c1;
+    if(equation < 2 && ( equation != 1 && (cycles - floor(cycles) < 1e-5) ) ) {
 
-    c1 = new QwtPlotCurve ( "Ideal Values" );
-    c1->setSamples ( eeWidgets[0]->getX(), eeWidgets[0]->getIdeal(), N );
-    c1->attach ( qwtPlot );
+        c1 = new QwtPlotCurve ( "Ideal Values" );
+        c1->setSamples ( eeWidgets[0]->getX(), eeWidgets[0]->getIdeal(), N_ );
+        c1->attach ( qwtPlot );
+    }
 
     for ( size_t i = 0; i < eeWidgets.size(); i++ ) {
         c1 = new QwtPlotCurve ( eeWidgets[i]->getTitle() );
-        c1->setSamples ( eeWidgets[i]->getX(), eeWidgets[i]->getU(), N );
-        c1->setPen ( QPen ( QBrush ( eeWidgets[i]->getColor() ), 1, Qt::DashLine ) );
+        c1->setSamples ( eeWidgets[i]->getX(), eeWidgets[i]->getU(), N_ );
+        c1->setPen ( QPen ( QBrush ( eeWidgets[i]->getColor() ), 1.5, Qt::DashLine ) );
         //c1->pen().setStyle(Qt::DashLine);
         c1->attach ( qwtPlot );
     }
@@ -113,6 +137,7 @@ void pde1d::metrics()
     double maxerr, rmserr, maxval, minval, totvar;
     double u, oldu, du;
     double err;
+    //bool notanint;
     QStringList colname;
     QTableWidgetItem oldname;
     QString ti;
@@ -122,8 +147,12 @@ void pde1d::metrics()
     if ( errTab->errTabWid->rowCount() < 5 ) errTab->errTabWid->setRowCount ( 5 );
     for ( size_t i = 0; i < eeWidgets.size(); i++ ) {
         solv = eeWidgets[i];
-        //std::cout << "pde1d::metrics solver " << solv->getTitle().toLocal8Bit().data() << "  " << i << "  " << N << std::endl;
-        ideal = solv->getIdeal();
+        //std::cout << "pde1d::metrics solver " << solv->getTitle().toLocal8Bit().data() << "  " << i << "  " << N_ << std::endl;
+        if(equation > 1 || ( equation == 1 && (cycles - floor(cycles) > 1e-5) ) ) {
+            ideal = eeWidgets[0]->getU();
+        } else {
+            ideal = solv->getIdeal();
+        }
         sim = solv->getU();
         maxerr = 0.0;
         rmserr = 0.0;
@@ -131,7 +160,7 @@ void pde1d::metrics()
         minval = 1e32;
         totvar = 0.0;
         oldu = sim[0];
-        for ( size_t j = 0; j < N; j++ ) {
+        for ( size_t j = 0; j < N_; j++ ) {
             u = sim[j];
             maxval = ( u > maxval ) ? u : maxval;
             minval = ( u < minval ) ? u : minval;
@@ -147,7 +176,7 @@ void pde1d::metrics()
         du = sim[0] - oldu;
         du = ( du > 0.0 ) ? du : -du;
         totvar += du;
-        rmserr = sqrt ( rmserr / N );
+        rmserr = sqrt ( rmserr / N_ );
         //std::cout << maxerr << '\t' << rmserr << '\t' << maxval << '\t' << minval << '\t' << totvar << std::endl;
         colname.append ( eeWidgets[i]->getTitle() );
         // add data to errTab->errTab
@@ -198,14 +227,14 @@ void pde1d::metrics()
 
 void pde1d::setSize ( int ivalue )
 {
-    if ( N == ( size_t ) ivalue ) return;
-    N = ivalue;
+    if ( N_ == ( size_t ) ivalue ) return;
+    N_ = ivalue;
     if ( eeWidgets.empty() ) return;
     for ( size_t i = 0; i < eeWidgets.size(); i++ ) {
-        eeWidgets[i]->setSize ( N );
+        eeWidgets[i]->setSize ( N_ );
     }
 
-    stop = control->intTimeSteps->value();
+    stop = control->intTimeSteps->getValue();
     replot ( "Initial Condition" );
 }
 
@@ -252,7 +281,7 @@ void pde1d::setCycles ( double value )
     for ( size_t i = 0; i < eeWidgets.size(); i++ ) {
         eeWidgets[i]->initSin ( cycles );
     }
-    stop = control->intTimeSteps->value();
+    stop = control->intTimeSteps->getValue();
     replot ( "Initial Condition" );
 }
 
@@ -267,14 +296,7 @@ void pde1d::setCFL ( double value )
     }
 }
 
-/*
- * void pde1d::setAlpha() {
-  double alf = 1.0;
-  alf = alphaLineEdit->text().toDouble();
-  if(alf == lw->getAlpha() ) return;
-	 lw->setAlpha(alf);
-}
-*/
+
 
 void pde1d::setStop ( int value )
 {
@@ -296,7 +318,7 @@ void pde1d::run()
     updateNames();
     if ( eeWidgets[0]->getCurrentStep() >= stop ) {
         metrics();
-        stop = eeWidgets[0]->getCurrentStep() + control->intTimeSteps->value();
+        stop = eeWidgets[0]->getCurrentStep() + control->intTimeSteps->getValue();
         return;
     }
     int iters = step;
@@ -319,8 +341,9 @@ void pde1d::reset()
     for ( size_t i = 0; i < eeWidgets.size(); i++ ) {
         eeWidgets[i]->initSin ( cycles );
     }
-    stop = control->intTimeSteps->value();
+    stop = control->intTimeSteps->getValue();
     replot ( "Initial Condition" );
+    metrics();
 }
 
 void pde1d::savePlot ( const QString& fileName, const char* format, int quality )
@@ -346,118 +369,58 @@ void pde1d::saveImage()
 
 void pde1d::addSolver ( int index )
 {
-  ///NOTE should change to addSolver(QString) and add combo items in constructor
-    QDockWidget *qdw;
     QString qtitle;
     switch ( index ) {
     case 1:
         EEWidget * eew;
         eew = new EEWidget();
-        eew->setup ( N, cycles, CFL );
-        eew->setId ( dockID++ );
-        connect ( eew, SIGNAL ( dockClose ( int ) ), this, SLOT ( removeSolver ( int ) ) );
-        this->addDockWidget ( Qt::LeftDockWidgetArea, eew );
-	this->tabifyDockWidget(control,eew);
-        qdw = dynamic_cast<QDockWidget *> ( eew );
-        if ( qdw == NULL ) {
-            delete eew;
-            return;
-        }
-        eeWidgets.push_back ( eew );
+        addIt(eew);
         break;
         //default:
     case 2:
         LeastSqrWidget *lsw;
         lsw = new LeastSqrWidget ( this );
-        lsw->setup ( N, cycles, CFL );
-        lsw->setId ( dockID++ );
-        lsw->setAlpha ( 0.5 );
-        connect ( lsw, SIGNAL ( dockClose ( int ) ), this, SLOT ( removeSolver ( int ) ) );
-        this->addDockWidget ( Qt::LeftDockWidgetArea, lsw );
-	this->tabifyDockWidget(control,lsw);
-        qdw = dynamic_cast<QDockWidget *> ( lsw );
-        if ( qdw == NULL ) {
-            delete lsw;
-            return;
-        }
-        eeWidgets.push_back ( lsw );
+        addIt(lsw);
         break;
     case 3:
         SimpImpWidget *siw;
         siw = new SimpImpWidget ( this );
-        siw->setup ( N, cycles, CFL );
-        siw->setId ( dockID++ );
-        siw->setImpl ( 0.5 );
-        siw->setUpwind ( 0.0 );
-        connect ( siw, SIGNAL ( dockClose ( int ) ), this, SLOT ( removeSolver ( int ) ) );
-        this->addDockWidget ( Qt::LeftDockWidgetArea, siw );
-	this->tabifyDockWidget(control,siw);
-        qdw = dynamic_cast<QDockWidget *> ( siw );
-        if ( qdw == NULL ) {
-            delete siw;
-            return;
-        }
-        eeWidgets.push_back ( siw );
+        addIt(siw);
         break;
     case 4:
         FEMWidget *femw;
         femw = new FEMWidget ( this );
-        femw->setup ( N, cycles, CFL );
-        femw->setId ( dockID++ );
-        femw->setAlpha ( 0.5 );
-        femw->setBasis ( 0 );
-        connect ( femw, SIGNAL ( dockClose ( int ) ), this, SLOT ( removeSolver ( int ) ) );
-        this->addDockWidget ( Qt::LeftDockWidgetArea, femw );
-	this->tabifyDockWidget(control,femw);
-        qdw = dynamic_cast<QDockWidget *> ( femw );
-        if ( qdw == NULL ) {
-            delete femw;
-            return;
-        }
-        eeWidgets.push_back ( femw );
+        addIt(femw);
         break;
     case 5:
         ImpWidget *lsw2;
         lsw2 = new ImpWidget ( this );
-        lsw2->setup ( N, cycles, CFL );
-        lsw2->setId ( dockID++ );
-        lsw2->setImplicit ( 5/12.0 );
-        lsw2->setBackward ( -1/12.0 );
-        lsw2->setBasis ( 0 );
-        connect ( lsw2, SIGNAL ( dockClose ( int ) ), this, SLOT ( removeSolver ( int ) ) );
-        this->addDockWidget ( Qt::LeftDockWidgetArea, lsw2 );
-	this->tabifyDockWidget(control,lsw2);
-        qdw = dynamic_cast<QDockWidget *> ( lsw2 );
-        if ( qdw == NULL ) {
-            delete lsw2;
-            return;
-        }
-        eeWidgets.push_back ( lsw2 );
+        addIt(lsw2);
         break;
     case 6:
         RKWidget *rkw;
         rkw = new RKWidget ( this );
-        rkw->setup ( N, cycles, CFL );
-        rkw->setId ( dockID++ );
-        rkw->setBasis ( 0 );
-        connect ( rkw, SIGNAL ( dockClose ( int ) ), this, SLOT ( removeSolver ( int ) ) );
-        this->addDockWidget ( Qt::LeftDockWidgetArea, rkw );
-	this->tabifyDockWidget(control,rkw);
-        qdw = dynamic_cast<QDockWidget *> ( rkw );
-        if ( qdw == NULL ) {
-            delete rkw;
-            return;
-        }
-        eeWidgets.push_back ( rkw );
+        addIt(rkw);
+        break;
+    case 7:
+        EnvWidget *envw;
+        envw = new EnvWidget ( this );
+        addIt(envw);
+        break;
+    case 8:
+        SpecWidget *specw;
+        specw= new SpecWidget ( this );
+        addIt(specw);
+        break;
+    case 9:
+        PSWidget *psw;
+        psw = new PSWidget ( this );
+        addIt(psw);
         break;
     default:
         return;
     }
     metrics();
-    //this->addDockWidget ( Qt::LeftDockWidgetArea, qdw );
-    //toolBox->addItem ( qw, qtitle );
-    //connect ( qdw, SIGNAL ( destroyed ( QObject * ) ), this, SLOT ( removeSolver ( QObject * obj ) ) );
-    //control->removeSolvCombo->addItem ( qtitle );
     reset();
 }
 
@@ -475,7 +438,6 @@ void pde1d::removeSolver ( int id )
             std::ostringstream s1;
             s1 << "Cycle " << std::fixed << std::setw ( 10 ) << std::setprecision ( 3 ) << ( eeWidgets[0]->getTravel() - 0.5 );
             replot ( s1.str().c_str() );
-            //QTimer::singleShot ( 10, this, SLOT ( run() ) );
             return;
         }
     }
@@ -495,4 +457,39 @@ void pde1d::updateNames()
         //toolBox->setItemText ( i + 1, eeWidgets[i]->getTitle() );
         //control->removeSolvCombo->setItemText ( i + 1, eeWidgets[i]->getTitle() );
     }
+}
+
+void pde1d::setEquation(int value) {
+    equation=value;
+    if ( eeWidgets.empty() ) return;
+    for ( size_t i = 0; i < eeWidgets.size(); i++ ) {
+        eeWidgets[i]->setEquation ( value);
+    }
+    control->pdeBox->setCurrentIndex(equation);
+}
+
+void pde1d::setViscosity(double value) {
+    visc=value;
+    if ( eeWidgets.empty() ) return;
+    for ( size_t i = 0; i < eeWidgets.size(); i++ ) {
+        eeWidgets[i]->setViscosity ( value);
+    }
+    control->viscInput->setValue(visc);
+}
+
+void pde1d::addIt(SolvWidget* solver) {
+    QDockWidget *qdw;
+    solver->setup ( N_, cycles, CFL );
+    solver->setId ( dockID++ );
+    solver->setEquation(equation);
+    solver->setViscosity(visc);
+    connect ( solver, SIGNAL ( dockClose ( int ) ), this, SLOT ( removeSolver ( int ) ) );
+    this->addDockWidget ( Qt::LeftDockWidgetArea, solver );
+    this->tabifyDockWidget(control,solver);
+    qdw = dynamic_cast<QDockWidget *> ( solver );
+    if ( qdw == NULL ) {
+        delete solver;
+        return;
+    }
+    eeWidgets.push_back ( solver );
 }

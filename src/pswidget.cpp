@@ -20,6 +20,7 @@
 #include "pswidget.h"
 #include <iostream>
 #include <cmath>
+#include "myinputs.h"
 
 PSWidget::PSWidget ( QWidget* parent ) : SolvWidget(parent)
 {   int iwid = 4;
@@ -51,13 +52,13 @@ PSWidget::PSWidget ( QWidget* parent ) : SolvWidget(parent)
     */
     plotNameEdit->setText ( title );
     implLabel = new QLabel ( tr ( "Implicit" ) );
-    implInput = new KDoubleNumInput ( 0.0, 1.0, 5/12.0, parent, 1e-14, 14 );
+    implInput = new MyDoubInput (QString("%1").arg(5/12.0), this);
     implInput->setValue(5/12.0);
     connect ( implInput, SIGNAL ( valueChanged ( double ) ), this, SLOT ( setImplicit ( double ) ) );
     verticalLayout->insertWidget ( iwid++, implLabel );
     verticalLayout->insertWidget ( iwid++, implInput );
     backLabel = new QLabel ( tr ( "Backward" ) );
-    backInput = new KDoubleNumInput ( -1.0, 1.0, -1/12.0, parent, 1e-14, 14 );
+    backInput = new MyDoubInput ( QString("%1").arg(-1/12.0), this);
     backInput->setValue(-1/12.0);
     connect ( backInput, SIGNAL ( valueChanged ( double ) ), this, SLOT ( setBackward(double)) );
     verticalLayout->insertWidget ( iwid++, backLabel );
@@ -68,9 +69,8 @@ PSWidget::PSWidget ( QWidget* parent ) : SolvWidget(parent)
     narrays=0;
     nStage = 0;
     method=-1;
-    setMethod(2);
-    setImplicit(0.5);
     setEquation(0);
+    setMethod(2);
     //set_default_options(&options);
 }
 

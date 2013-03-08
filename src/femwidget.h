@@ -20,7 +20,7 @@
 
 #ifndef LS2WIDGET_H
 #define LS2WIDGET_H
-#include <knuminput.h>
+#include "myinputs.h"
 #include <gsl/gsl_vector.h>
 
 #include "solvwidget.h"
@@ -47,7 +47,7 @@ public:
 	
 protected:
   QLabel *alphaLabel;
-  KDoubleNumInput *alphaInput;
+  MyDoubInput *alphaInput;
   QLabel *weightLabel;
   QComboBox *weightBox;
   

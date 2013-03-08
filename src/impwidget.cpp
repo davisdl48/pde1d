@@ -47,13 +47,13 @@ ImpWidget::ImpWidget ( QWidget* parent ) : SolvWidget(parent)
     connect ( weightBox, SIGNAL( activated(int) ), this, SLOT( setBasis(int) ) );
     plotNameEdit->setText ( title );
     implLabel = new QLabel ( tr ( "Implicit" ) );
-    implInput = new KDoubleNumInput ( 0.0, 1.0, 5/12.0, parent, 1e-14, 14 );
+    implInput = new MyDoubInput ( 5/12.0, this, 0.0, 1.0,  1e-14, 14 );
     implInput->setValue(5/12.0);
     connect ( implInput, SIGNAL ( valueChanged ( double ) ), this, SLOT ( setImplicit ( double ) ) );
     verticalLayout->insertWidget ( iwid++, implLabel );
     verticalLayout->insertWidget ( iwid++, implInput );
     backLabel = new QLabel ( tr ( "Backward" ) );
-    backInput = new KDoubleNumInput ( -1.0, 1.0, -1/12.0, parent, 1e-14, 14 );
+    backInput = new MyDoubInput ( -1/12.0, this, -1.0, 1.0, 1e-14, 14 );
     backInput->setValue(-1/12.0);
     connect ( backInput, SIGNAL ( valueChanged ( double ) ), this, SLOT ( setBackward(double)) );
     verticalLayout->insertWidget ( iwid++, backLabel );

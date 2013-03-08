@@ -18,27 +18,26 @@
 */
 
 
-#ifndef IMPWIDGET_H
-#define IMPWIDGET_H
+#ifndef ENVWIDGET_H
+#define ENVWIDGET_H
 
 #include "solvwidget.h"
-#include <knuminput.h>
+#include "myinputs.h"
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_permutation.h>
-#include <superlu/slu_ddefs.h>
 //#include "../superlu/SRC/slu_ddefs.h"
 
-class ImpWidget : public SolvWidget
+class EnvWidget : public SolvWidget
 {
 
     Q_OBJECT
 
 public:
-    ImpWidget ( QWidget* parent = 0 );
-    ImpWidget ( const ImpWidget& other );
-    virtual ~ImpWidget();
-    virtual ImpWidget& operator= ( const ImpWidget& other );
-    virtual bool operator== ( const ImpWidget& other ) const;
+    EnvWidget ( QWidget* parent = 0 );
+    EnvWidget ( const EnvWidget& other );
+    virtual ~EnvWidget();
+    virtual EnvWidget& operator= ( const EnvWidget& other );
+    virtual bool operator== ( const EnvWidget& other ) const;
 
     virtual void step ( const size_t nStep );
     virtual void setSize ( const size_t size = 100 );
@@ -56,73 +55,60 @@ public slots:
 
 protected:
     QLabel *implLabel;
-    KDoubleNumInput *implInput;
+    MyDoubInput *implInput;
     QLabel *backLabel;
-    KDoubleNumInput *backInput;
+    MyDoubInput *backInput;
     QLabel *weightLabel;
     QComboBox *weightBox;
     QLabel *methodLabel;
     QComboBox *methodBox;
 
     int method;
-    double *coef; // coefficient matrix index ( variable + nvar*ntime + nvar*ntime*block )
-    int ncoef; // number of coefficients = nblock*nvar*ntime -- used to track changes
-    int nblock; //block size
-    int ivar; // index of first diagonal element
-    int nvar; // number of bases interacting with the diagonal element
-    int ntime; // 2 or 3
-    int nup; // number of upper blocks or coefficients
-    int ndn; // number of lower coefficients or blocks
-
     double impl;
     double beta;
     double back;
     int ibase;
-    double *Ub;
-    bool aexist; // check is A needs to be deleted
     bool dirty; // value to check for changes
-    char           equed[1];
-    yes_no_t       equil;
-    trans_t        trans;
-    SuperMatrix    A, L, Up;
-    SuperMatrix    B, X;
-    double         *a;
-    int            *asub, *xa;
-    int            *perm_c; /* column permutation vector */
-    int            *perm_r; /* row permutations from partial pivoting */
-    int            *etree;
-    void           *work;
-    int            info, lwork, nrhs;
-    int            i, m, n, nnz;
-    double         *rhsb, *rhsx;
-    double         *R, *C;
-    double         *ferr, *berr;
-    double         u, rpg, rcond;
-    mem_usage_t    mem_usage;
-    superlu_options_t options;
-    SuperLUStat_t stat;
     
-    bool transform;
-    double *Utran;
-    gsl_vector * TranVec; // transform values
-    gsl_vector * UVec;  // Physical Space
+    int ipad; // padding to the sides of the window
+    int winwid; // initial window width
+    int winoff; // offset step between windows 
+    double * weights; // window weights 
+    
+    size_t nbas; // number of points in the transform and number of basis functions
+                 // nbas == winwid + 2*ipad
+    int ntime; // 2 - central Time Implicit, 3 - Adams
+
+    double *Ub; // U at n-1 for adams method or Utransform at n-1 
+    size_t nub;            // Ub size = N_/winoff*nbas
+    double *Usum;
+    gsl_vector_view UbView;
+    
+    gsl_vector * TranVec; // nbas transform values within envelope
+    gsl_vector * UVec;  // Physical Space solution of envelope
+    gsl_vector * BVec;  // Right Side
+    gsl_vector * CVec;  // far right side for Adams method
+    
+    gsl_matrix * Left; // Implicit part of pde operator - LU factored
+    gsl_permutation * lpermut;
+    gsl_matrix * Right;  // Right side
+    gsl_matrix * FarRight;  // Right side operator on Ub
+    
     gsl_matrix * Mforw; // forward transform matrix = LU of Mback
     gsl_matrix * Mback; // reverse transform matrix
-    int matSize_gsl; // flag for control of gsl_matrix allocation
+    
+   
     gsl_permutation * permut;
     int signum;
     
     void updateCoef( int value );
-    void fillA();
-    void fillB();
-    void blockFillA();
     void lspc();
     void lspa();
     void femc();
-    void fema() ;
-    void reversTrans(double *from,double *to);
-    void forwardTrans(double *from,double *to);
-    void setupTrans() ;
+    void fema();
+    void rk();
+    void setupTrans(int size) ;
+    void allocate_gsl(int size);
     
 };
 

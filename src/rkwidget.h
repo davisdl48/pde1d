@@ -22,7 +22,7 @@
 #define RKWIDGET_H
 
 #include "solvwidget.h"
-#include <knuminput.h>
+#include "myinputs.h"
 #include <superlu/slu_ddefs.h>
 //#include "../superlu/SRC/slu_ddefs.h"
 
@@ -60,26 +60,20 @@ protected:
     int nblock; //block size
     int ivar; // index of first diagonal element
     int nvar; // number of bases interacting with the diagonal element
-    double **dblk ; // diagonal block
-    double ***ublk ; // upper blocks
-    double ***lblk ; // lower blocks
     int nup; // number of upper blocks or coefficients
     int ndn; // number of lower coefficients or blocks
-    double dcoef;
-    double *upcoef;
-    double *dncoef;
 
     // Butcher Tablue Values for RK integrations
     double *b_a;// assume lower triangular
     double *b_b;
     double *b_c;
-    double *b_k;// dimension N*nstage*n_b_k
+    double *b_k;// dimension N_*nstage*n_b_k
     int nStage;
     int n_b_k; // for RKF adaptive methods - modified Butcher Tablue size
 
     int ibase;
     bool aexist; // check if A needs to be deleted
-    bool dirty; // value to indicate changes that require a new A matrix
+    //bool dirty; // value to indicate changes that require a new A matrix
     char           equed[1];
     yes_no_t       equil;
     trans_t        trans;

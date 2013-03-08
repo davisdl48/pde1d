@@ -1,5 +1,5 @@
 /*
-    <one line to give the library's name and an idea of what it does.>
+    Solves Linear Advection Equation by FFT
     Copyright (C) 2013  Doug Davis <email>
 
     This library is free software; you can redistribute it and/or
@@ -54,13 +54,13 @@ SpecWidget::SpecWidget ( QWidget* parent ) : SolvWidget(parent)
     */
     plotNameEdit->setText ( title );
     implLabel = new QLabel ( tr ( "Implicit" ) );
-    implInput = new KDoubleNumInput ( 0.0, 1.0, 5/12.0, parent, 1e-14, 14 );
+    implInput = new MyDoubInput ( 5/12.0, this, 0.0, 1.0, 1e-14, 14 );
     implInput->setValue(5/12.0);
     connect ( implInput, SIGNAL ( valueChanged ( double ) ), this, SLOT ( setImplicit ( double ) ) );
     verticalLayout->insertWidget ( iwid++, implLabel );
     verticalLayout->insertWidget ( iwid++, implInput );
     backLabel = new QLabel ( tr ( "Backward" ) );
-    backInput = new KDoubleNumInput ( -1.0, 1.0, -1/12.0, parent, 1e-14, 14 );
+    backInput = new MyDoubInput ( -1/12.0, this, -1.0, 1.0, 1e-14, 14 );
     backInput->setValue(-1/12.0);
     connect ( backInput, SIGNAL ( valueChanged ( double ) ), this, SLOT ( setBackward(double)) );
     verticalLayout->insertWidget ( iwid++, backLabel );
@@ -421,6 +421,7 @@ void SpecWidget::femc() {
 
     double right[2][2];
     double left[2][2];
+    int np;
     dscal = 2*pi/N_;
 
     cimp = CFL*impl;
@@ -431,6 +432,7 @@ void SpecWidget::femc() {
 
     data[0][0] = data[1][0];
     for(size_t nn=0; nn<N_/2; nn++) {
+      np = nn+1;
         ur = data[1][2*nn+1];
         if( 2*nn+2 == N_) {
             data[0][2*nn+1] = ur;
@@ -439,13 +441,13 @@ void SpecWidget::femc() {
         ui = data[1][2*nn+2];
 
         right[0][0] = 1;
-        right[0][1] = dscal*cbet*(nn+1);
-        right[1][0] = -dscal*cbet*(nn+1);
+        right[0][1] = dscal*cbet*np;
+        right[1][0] = -dscal*cbet*np;
         right[1][1] = 1;
 
         left[0][0] = 1;
-        left[0][1] = -dscal*cimp*(nn+1);
-        left[1][0] = dscal*cimp*(nn+1);
+        left[0][1] = -dscal*cimp*np;
+        left[1][0] = dscal*cimp*np;
         left[1][1] = 1;
 
         det = left[0][0]*left[1][1]-left[0][1]*left[1][0];

@@ -22,8 +22,11 @@
 #define IMPWIDGET_H
 
 #include "solvwidget.h"
-#include <knuminput.h>
-#include <superlu/slu_ddefs.h>
+#include "myinputs.h"
+#include <gsl/gsl_matrix.h>
+#include <gsl/gsl_permutation.h>
+#include <slu_ddefs.h>
+//#include <superlu/slu_ddefs.h>
 //#include "../superlu/SRC/slu_ddefs.h"
 
 class ImpWidget : public SolvWidget
@@ -42,7 +45,9 @@ public:
     virtual void setSize ( const size_t size = 100 );
     virtual void setCFL ( const double value = 1.0 ) ;
     const double getImplicit();
-
+    virtual void initSin ( const double value );
+    virtual double* getU();
+    
 public slots:
     void setImplicit ( double value = 5/12.0 ) ;
     void setBackward ( double value = -1/12.0 );
@@ -52,29 +57,23 @@ public slots:
 
 protected:
     QLabel *implLabel;
-    KDoubleNumInput *implInput;
+    MyDoubInput *implInput;
     QLabel *backLabel;
-    KDoubleNumInput *backInput;
+    MyDoubInput *backInput;
     QLabel *weightLabel;
     QComboBox *weightBox;
     QLabel *methodLabel;
     QComboBox *methodBox;
 
     int method;
-    double *coef; // coefficient matrix index ( variable + nvar*time + nvar*ntime*block )
+    double *coef; // coefficient matrix index ( variable + nvar*ntime + nvar*ntime*block )
     int ncoef; // number of coefficients = nblock*nvar*ntime -- used to track changes
     int nblock; //block size
     int ivar; // index of first diagonal element
     int nvar; // number of bases interacting with the diagonal element
     int ntime; // 2 or 3
-    double **dblk ; // diagonal block
-    double ***ublk ; // upper blocks
-    double ***lblk ; // lower blocks
     int nup; // number of upper blocks or coefficients
     int ndn; // number of lower coefficients or blocks
-    double dcoef;
-    double *upcoef;
-    double *dncoef;
 
     double impl;
     double beta;
@@ -104,6 +103,16 @@ protected:
     superlu_options_t options;
     SuperLUStat_t stat;
     
+    bool transform;
+    double *Utran;
+    gsl_vector * TranVec; // transform values
+    gsl_vector * UVec;  // Physical Space
+    gsl_matrix * Mforw; // forward transform matrix = LU of Mback
+    gsl_matrix * Mback; // reverse transform matrix
+    int matSize_gsl; // flag for control of gsl_matrix allocation
+    gsl_permutation * permut;
+    int signum;
+    
     void updateCoef( int value );
     void fillA();
     void fillB();
@@ -112,6 +121,9 @@ protected:
     void lspa();
     void femc();
     void fema() ;
+    void reversTrans(double *from,double *to);
+    void forwardTrans(double *from,double *to);
+    void setupTrans() ;
     
 };
 

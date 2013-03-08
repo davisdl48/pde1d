@@ -22,7 +22,7 @@
 #define SIMPIMPWIDGET_H
 
 #include "solvwidget.h"
-#include <knuminput.h>
+#include "myinputs.h"
 #include <gsl/gsl_vector.h>
 
 
@@ -49,9 +49,9 @@ protected:
   double impl;
   double upwind;
   QLabel *impLabel;
-  KDoubleNumInput *impInput;
+  MyDoubInput *impInput;
   QLabel *upwLabel;
-  KDoubleNumInput *upwInput;
+  MyDoubInput *upwInput;
   
   gsl_vector * X;
   gsl_vector * DIAG;

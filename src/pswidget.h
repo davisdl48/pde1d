@@ -22,7 +22,7 @@
 #define PSWIDGET_H
 
 #include "solvwidget.h"
-#include <knuminput.h>
+#include "myinputs.h"
 #include <gsl/gsl_fft_real.h>
 #include <gsl/gsl_fft_halfcomplex.h>
 #include <gsl/gsl_errno.h>
@@ -56,9 +56,9 @@ public slots:
 
 protected:
     QLabel *implLabel;
-    KDoubleNumInput *implInput;
+    MyDoubInput *implInput;
     QLabel *backLabel;
-    KDoubleNumInput *backInput;
+    MyDoubInput *backInput;
     QLabel *weightLabel;
     QComboBox *weightBox;
     QLabel *methodLabel;

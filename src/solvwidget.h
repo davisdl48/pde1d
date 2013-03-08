@@ -20,13 +20,24 @@
 
 #ifndef SOLVWIDGET_H
 #define SOLVWIDGET_H
-#include <ui_solvwidget.h>
 #include <QtGui/qcolor.h>
 #include <QtGui/QCloseEvent>
-#include "kcolorcombo.h"
-//#include "eulerexwidget.moc"
+#include <QtGui/QDockWidget>
+#include <QtGui/QLabel>
+#include <QtGui/QLineEdit>
+#include <QtGui/QSpacerItem>
+#include <QtGui/QVBoxLayout>
+#include <QtGui/QWidget>
+#include "myinputs.h"
 
-class SolvWidget : public  QDockWidget, public Ui_SolvWidget
+//#include "eulerexwidget.moc"
+/*! Base widget should be inherited to add a numerical solver
+ * 
+ * To add a new solver inherit from this class and override
+ * ~ - the destructor to delete data
+ * setSize(int ) - dimension data and delete if nessecary 
+*/
+class SolvWidget : public  QDockWidget
 {
     Q_OBJECT
 
@@ -40,7 +51,9 @@ public:
     QString& getTitle();
 
     const size_t getSize() ;
-    void initSin ( const double cycles = 1.0 );
+    void resize(int value );
+    
+    virtual void initSin ( const double cycles = 1.0 );
 
     virtual void setCFL ( const double value = 1.0 );
     const double getCFL();
@@ -48,13 +61,14 @@ public:
     const double getSpeed() ;
 
     double * getX();
-    double * getU();
+    virtual double * getU();
     double * getIdeal();
 
     void setup ( const size_t size = 100, const double cycles = 1.0, const double cfl = 1.0 );
     int getCurrentStep();
     double getCycles();
     double getTravel();
+    bool getBurg() ;
 
     int getId() ;
     void setId ( int value ) ;
@@ -62,23 +76,45 @@ public:
     virtual void closeEvent ( QCloseEvent *ev ) ;
     virtual void setSize ( const size_t size = 100 ) = 0;
     virtual void step ( const size_t nStep ) = 0;
+    
+    QWidget *dockWidgetContents;
+    QVBoxLayout *verticalLayout;
+    QLabel *plotNameLabel;
+    QLineEdit *plotNameEdit;
+    QLabel *plotColorLabel;
+    MyColorButton *plotColor;
+    QSpacerItem *verticalSpacer;
+   void setupUi();
+   
 
 public slots:
     void setColor ( QColor color ) ;
     void setTitle ( QString title ) ;
+    
+    void setEquation( int index) ;
+    void setViscosity( double value = 0.0 ) ;
 
 signals:
   void dockClose(int id);
 
 
 protected:
-    QColor col;
     QString title;
 
-    size_t N;
-    double *U;
-    double *ideal;
-    double *x;
+    size_t N_;
+    double *U_;
+    double *Ideal_;
+    double *X_;
+    /// U_t + e*E(U)_x  + d*D(U)_xx = 0.0
+    double *E_; // Flux Vector- scalar
+    double *J_; // Jacobian dE/dU
+    double *D_; // Dissipation Variable
+    double *Init_;
+    double d_; // dissipation coefficient = viscosity*dx/c*CFL
+    double e_; // flux coefficient = CFL
+    void Efunc(double *Udat);
+    void Dfunc(double *Ddat);
+    double visc_; // viscosity
     double dt;
     double dx;
     double CFL;
@@ -88,6 +124,8 @@ protected:
     double totCFL;
     int frameNum;
     int id;
+    bool burg;
+    bool dirty;
 };
 
 #endif // EULEREXWIDGET_H

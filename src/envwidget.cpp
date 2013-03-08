@@ -17,15 +17,15 @@
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "impwidget.h"
+#include "envwidget.h"
 #include <iostream>
 #include <gsl/gsl_linalg.h>
 #include <gsl/gsl_blas.h>
 #include <cmath>
 
-ImpWidget::ImpWidget ( QWidget* parent ) : SolvWidget(parent)
+EnvWidget::EnvWidget ( QWidget* parent ) : SolvWidget(parent)
 {   int iwid = 4;
-    setTitle(tr("LSP Central Time"));
+    setTitle(tr("Envelope Method"));
 
     methodLabel = new QLabel ( tr ( "Method" ) );
     methodBox = new QComboBox ( this );
@@ -33,369 +33,301 @@ ImpWidget::ImpWidget ( QWidget* parent ) : SolvWidget(parent)
     methodBox->addItem( tr("LSP - Adams"));
     methodBox->addItem( tr("FEM - Central time"));
     methodBox->addItem( tr("FEM - Adams"));
+    methodBox->addItem( tr("Runge Kutta"));
     connect ( methodBox, SIGNAL( activated(int) ), this, SLOT( setMethod(int) ) );
     verticalLayout->insertWidget ( iwid++, methodLabel );
     verticalLayout->insertWidget ( iwid++, methodBox );
     weightLabel = new QLabel ( tr ( "Basis Functions" ) );
     weightBox = new QComboBox ( this );
-    weightBox->addItem ( tr ( "Linear Basis" ) );
-    weightBox->addItem ( tr ( "Cosine Basis" ) );
-    weightBox->addItem ( tr ( "Parabolic Basis" ) );
-    weightBox->addItem ( tr ( "Linear Fourier" ) );
+    weightBox->addItem ( tr ( "Linear by 4" ) );
+    weightBox->addItem ( tr ( "Cosine by 8" ) );
+    weightBox->addItem ( tr ( "Cosine by 16" ) );
+    weightBox->addItem ( tr ( "Cosine by 15" ) );
     verticalLayout->insertWidget ( iwid++, weightLabel );
     verticalLayout->insertWidget ( iwid++, weightBox );
     connect ( weightBox, SIGNAL( activated(int) ), this, SLOT( setBasis(int) ) );
     plotNameEdit->setText ( title );
     implLabel = new QLabel ( tr ( "Implicit" ) );
-    implInput = new KDoubleNumInput ( 0.0, 1.0, 5/12.0, parent, 1e-14, 14 );
+    implInput = new MyDoubInput ( 5/12.0, this, 0.0, 1.0, 1e-14, 14 );
     implInput->setValue(5/12.0);
     connect ( implInput, SIGNAL ( valueChanged ( double ) ), this, SLOT ( setImplicit ( double ) ) );
     verticalLayout->insertWidget ( iwid++, implLabel );
     verticalLayout->insertWidget ( iwid++, implInput );
     backLabel = new QLabel ( tr ( "Backward" ) );
-    backInput = new KDoubleNumInput ( -1.0, 1.0, -1/12.0, parent, 1e-14, 14 );
+    backInput = new MyDoubInput ( -1/12.0, this, -1.0, 1.0, 1e-14, 14 );
     backInput->setValue(-1/12.0);
     connect ( backInput, SIGNAL ( valueChanged ( double ) ), this, SLOT ( setBackward(double)) );
     verticalLayout->insertWidget ( iwid++, backLabel );
     verticalLayout->insertWidget ( iwid++, backInput );
 
-    /* Set the default values for options argument: */
-    options.Fact = DOFACT;
-    options.Equil = YES;
-    options.ColPerm = COLAMD;
-    options.DiagPivotThresh = 1.0;
-    options.Trans = NOTRANS;
-    options.IterRefine = NOREFINE;
-    options.SymmetricMode = NO;
-    options.PivotGrowth = NO;
-    options.ConditionNumber = NO;
-    options.PrintStat = NO;
     /* Set the default values */
     setColor ( Qt::magenta );
-    lwork = 0;
-    nrhs  = 1;
-    ncoef = 0;
-    aexist = false;
+    nbas = 0;
+
+    winwid = 0;
+    winoff = 0;
+
+
     dirty = true;
-    nblock = 1;
-    matSize_gsl=0;
-    transform = false;
     ibase=-1;
     method=-1;
-    setBasis(0);
-    setMethod(0);
+    setBasis(3);
+    setMethod(2);
     //set_default_options(&options);
 }
 
-ImpWidget::ImpWidget ( const ImpWidget& other )
+EnvWidget::EnvWidget ( const EnvWidget& other )
 {
 
 }
 
-ImpWidget::~ImpWidget()
+EnvWidget::~EnvWidget()
 {
     if ( N_ != 0 ) {
-
-        delete[] Ub;
-        delete[] Utran;
-
-        SUPERLU_FREE (rhsb);
-        SUPERLU_FREE (rhsx);
-        SUPERLU_FREE (etree);
-        SUPERLU_FREE (perm_r);
-        SUPERLU_FREE (perm_c);
-        SUPERLU_FREE (R);
-        SUPERLU_FREE (C);
-        SUPERLU_FREE (ferr);
-        SUPERLU_FREE (berr);
-        /// ???
-        if(aexist) {
-            /// ??? Destroy_CompCol_Matrix(&A);
-            delete[] a;
-            delete[] xa;
-            delete[] asub;
-        }
-        Destroy_SuperMatrix_Store(&B);
-        Destroy_SuperMatrix_Store(&X);
-        if ( lwork == 0 && !dirty) {
-            Destroy_SuperNode_Matrix(&L);
-            Destroy_CompCol_Matrix(&Up);
-        } else if ( lwork > 0 ) {
-            SUPERLU_FREE(work);
+        if(nbas) {
+            delete[] Ub;
         }
     }
 
-    if( matSize_gsl ) {
+    if( nbas ) {
         // deallocate matricies
         gsl_vector_free(UVec);
+        gsl_vector_free(BVec);
+        gsl_vector_free(CVec);
         gsl_vector_free(TranVec);
         gsl_matrix_free(Mforw);
+        gsl_permutation_free(permut);
         gsl_matrix_free(Mback);
+        gsl_matrix_free(Left);
+        gsl_permutation_free(lpermut);
+        gsl_matrix_free(Right);
+        gsl_matrix_free(FarRight);
     }
 }
 
-ImpWidget& ImpWidget::operator= ( const ImpWidget& other )
+EnvWidget& EnvWidget::operator= ( const EnvWidget& other )
 {
     return *this;
 }
 
-bool ImpWidget::operator== ( const ImpWidget& other ) const
+bool EnvWidget::operator== ( const EnvWidget& other ) const
 {
     return (this == &other);
 }
 
 
-void ImpWidget::setBasis ( int index )
+void EnvWidget::setBasis ( int index )
 {
+    double dthet;
     if(ibase != index) dirty = true;
     ibase = index;
     switch(ibase) {
     default:
         ibase = 0;
-    case 0: // linear
-    case 1: // raised cosine
-        nvar = 3;
-        nblock = 1;
-        ivar = 1;
+    case 0: // linear by 4
+        winwid=4;
+        winoff=2;
+        weights = new double[winwid];
+        weights[0]=0.0;
+        weights[1]=weights[3]=0.5;
+        weights[2]=1.0;
+        setupTrans(winwid);
         break;
-    case 2: // peicewise parabolic
-        nvar = 5;
-        nblock = 2;
-        ivar=1;
+    case 1: // raised cosine by 8
+        winwid=8;
+        winoff=4;
+        weights = new double[winwid];
+        dthet = 2*pi/winwid;
+        std::cout << " Weights\n";
+        for(int i=0; i<winwid; i++)  {
+            weights[i]=(1-cos(i*dthet))/2;
+            std::cout << i << "  " << weights[i] << std::endl;
+        }
+        setupTrans(winwid);
         break;
-    case 3: // Fourier 4
-        nvar = 12;
-        nblock = 4;
-        ivar = 4;
-        setupTrans();
-        break;
+    case 2: // raised cos by 16
+        winwid=16;
+        winoff=6;
+        weights = new double[winwid];
+        dthet = 2*pi/(winwid-2);
+        std::cout << " Weights\n";
+        weights[0]=0.0;
+        std::cout << "0  " << weights[0] << std::endl;
+        for(int i=1; i<winwid-1; i++)  {
+            weights[i]=(1-cos((i-1)*dthet))/2;
+            std::cout << i << "  " << weights[i] << std::endl;
+        }
+        weights[winwid-1]=0.0;
+        std::cout << winwid-1 << "  " << weights[winwid-1] << std::endl;
+        //for(int i=0; i<winwid; i++)  weights[i]=1.0;
+        setupTrans(winwid);
+    case 3: // raised cos by 15
+        winwid=15;
+        winoff=15;
+	setSize(15);
+        weights = new double[winwid];
+        dthet = 2*pi/(winwid-2);
+        std::cout << " Weights\n";
+        weights[0]=0.0;
+        std::cout << "0  " << weights[0] << std::endl;
+        for(int i=1; i<winwid-1; i++)  {
+            weights[i]=(1-cos((i-1)*dthet))/2;
+            std::cout << i << "  " << weights[i] << std::endl;
+        }
+        weights[winwid-1]=0.0;
+        std::cout << winwid-1 << "  " << weights[winwid-1] << std::endl;
+        for(int i=0; i<winwid; i++)  weights[i]=1.0;
+        //for(int i=0; i<winwid; i++)  weights[i]=1.0;
+        setupTrans(winwid);
     }
-    ndn = ivar;
-    nup = nvar - ivar;
     weightBox->setCurrentIndex ( ibase );
 }
 
-void ImpWidget::setSize ( const size_t value )
+void EnvWidget::setSize ( const size_t value )
 {
-    int add = value%nblock;
+    int add = value%winoff;
     size_t newval = value + add;
     if ( newval == N_ ) return;
     dirty = true;
     cStep = 0;
     if ( N_ != 0 ) {
         delete[] U_;
-        delete[] Ub;
         delete[] X_;
         delete[] Ideal_;
-        delete[] Utran;
+        delete[] Usum;
+        if(nbas) {
+            delete[] Ub;
+        }
 
-        SUPERLU_FREE (rhsb);
-        SUPERLU_FREE (rhsx);
-        SUPERLU_FREE (etree);
-        SUPERLU_FREE (perm_r);
-        SUPERLU_FREE (perm_c);
-        SUPERLU_FREE (R);
-        SUPERLU_FREE (C);
-        SUPERLU_FREE (ferr);
-        SUPERLU_FREE (berr);
-        /// ???
-        if(aexist) {
-            /// ??? Destroy_CompCol_Matrix(&A);
-            //delete[] a;
-            //delete[] xa;
-            //delete[] asub;
-        }
-        Destroy_SuperMatrix_Store(&B);
-        Destroy_SuperMatrix_Store(&X);
-        if ( lwork == 0 && !dirty) {
-            Destroy_SuperNode_Matrix(&L);
-            Destroy_CompCol_Matrix(&Up);
-        } else if ( lwork > 0 ) {
-            SUPERLU_FREE(work);
-        }
-        aexist= false;
         dirty = true;
     }
     N_ = newval;
     U_ = new double[N_];
-    Ub = new double[N_];
     X_ = new double[N_];
-    Utran = new double[N_];
+    Usum = new double[N_];
+    for(int i=0; i<N_; i++) Usum[i]=0.0;
+    if(nbas) {
+        Ub = new double[nbas*N_];
+    }
 
     Ideal_ = new double[N_];
     initSin ( cycles );
-
-    if ( !(rhsb = doubleMalloc(N_)) ) ABORT("Malloc fails for rhsb[].");
-    if ( !(rhsx = doubleMalloc(N_)) ) ABORT("Malloc fails for rhsx[].");
-    dCreate_Dense_Matrix(&B, N_, 1, rhsb, N_, SLU_DN, SLU_D, SLU_GE);
-    dCreate_Dense_Matrix(&X, N_, 1, rhsx, N_, SLU_DN, SLU_D, SLU_GE);
-
-    if ( !(etree = intMalloc(N_)) ) ABORT("Malloc fails for etree[].");
-    if ( !(perm_r = intMalloc(N_)) ) ABORT("Malloc fails for perm_r[].");
-    if ( !(perm_c = intMalloc(N_)) ) ABORT("Malloc fails for perm_c[].");
-    if ( !(R = (double *) SUPERLU_MALLOC(N_ * sizeof(double))) )
-        ABORT("SUPERLU_MALLOC fails for R[].");
-    if ( !(C = (double *) SUPERLU_MALLOC(N_ * sizeof(double))) )
-        ABORT("SUPERLU_MALLOC fails for C[].");
-    if ( !(ferr = (double *) SUPERLU_MALLOC( sizeof(double))) )
-        ABORT("SUPERLU_MALLOC fails for ferr[].");
-    if ( !(berr = (double *) SUPERLU_MALLOC( sizeof(double))) )
-        ABORT("SUPERLU_MALLOC fails for berr[].");
 }
 
-void ImpWidget::step ( const size_t nStep )
+void EnvWidget::step ( const size_t nStep )
 {
-    DNformat *Bstore;
-    DNformat *Xstore;
+    int istart;
+    if( dirty ) {
+        updateCoef(method);
+        dirty=false;
+    }
     if(totCFL == N_ / 2.0 ) {
-        totCFL += -CFL;
+        totCFL -= CFL;
         getIdeal();
         std::cout << "Initialize Ub = Ideal_ at " << totCFL << std::endl;
-        if(transform) {
-            forwardTrans(Ideal_,Ub);
-            forwardTrans(U_,Utran);
-        } else {
-            for(size_t n = 0; n < N_; n++) {
-                Ub[n]=Ideal_[n];
+        int ustart=0;
+        for( int iwin = winwid/2-1; iwin<N_ ; iwin+=winoff) {
+            istart = iwin-(winwid)/2;
+            if( istart < 0 ) istart= N_+istart;
+            for( size_t i=0; i<winwid; i++) {
+                gsl_vector_set(UVec,i,Ideal_[istart]*weights[i]);
+                istart++;
+                if(istart == N_) istart = 0;
+            }
+            // transform U  -  (U*window)-> Utran
+            gsl_linalg_LU_solve(Mforw,permut,UVec,TranVec);
+            for( size_t i=0; i<nbas; i++) {
+                Ub[ustart] = gsl_vector_get(TranVec,i);
+                ustart++;
             }
         }
         totCFL = N_/2.0;
     }
-    if( dirty ) {
-        if(aexist) {
-            Destroy_CompCol_Matrix(&A);
-            if ( lwork == 0 ) {
-                Destroy_SuperNode_Matrix(&L);
-                Destroy_CompCol_Matrix(&Up);
-            } else if ( lwork > 0 ) {
-                SUPERLU_FREE(work);
+    int ubstart=0;
+    bool printinout=true;
+    for ( size_t ns = 0; ns < nStep; ns++ ) {
+        for( int iwin = 0; iwin<N_ ; iwin += winoff) {
+            istart = iwin;
+	    
+            if( istart < 0 ) istart= N_+istart;
+            int isw = istart+winwid;
+            if(isw >= N_) isw -= N_;
+            //gsl_vector_set(UVec,ipad,(U_[istart]+U_[isw])*weights[0]/2.0);
+            for( size_t i=0; i<winwid; i++) {
+                gsl_vector_set(UVec,i,U_[istart]*weights[i]);
+                istart++;
+                if(istart == N_) istart = 0;
             }
-            // these may be freed in dgssvx or Destroy_CompCol_Matrix I think
-            aexist = false;
-        }
-        a = new double[nvar*N_];
-        xa = new int[N_+1];
-        asub = new int[nvar*N_];
-        updateCoef(method);
-        if(nblock == 1) {
-            // load with coef[] ???
-            fillA();
-            std::cout << " nnz = " << nnz << std::endl;
-        } else if (nup+ndn == 0) {
-            // solve seperate independent blocks???
-        } else {
-            // load block system
-            blockFillA();
-        }
-
-        dCreate_CompCol_Matrix(&A, N_, N_, nnz, a, asub, xa, SLU_NC, SLU_D, SLU_GE);
-        aexist = true;
-        /* Initialize the statistics variables. */
-        StatInit(&stat);
-
-        dPrint_CompCol_Matrix("A matrix", &A);
-        options.Fact = DOFACT;
-        //options.ColPerm=NATURAL;
-        options.ColPerm=COLAMD;
-        options.PivotGrowth = NO;
-        options.ConditionNumber = NO;
-        /* ONLY PERFORM THE LU DECOMPOSITION */
-        B.ncol = 0;  /* Indicate not to solve the system */
-        dgssvx(&options, &A, perm_c, perm_r, etree, equed, R, C,
-               &L, &Up, work, lwork, &B, &X, &rpg, &rcond, ferr, berr,
-               &mem_usage, &stat, &info);
-        //dPrint_CompCol_Matrix("A matrix", &A);
-        printf("LU factorization: dgssvx() returns info %d\n", info);
-        if ( info == 0 || info == N_+1 ) {
-
-            if ( options.PivotGrowth ) printf("Recip. pivot growth = %e\n", rpg);
-            if ( options.ConditionNumber )
-                printf("Recip. condition number = %e\n", rcond);
-
-            printf("L\\U_ MB %.3f\ttotal MB needed %.3f\n",
-                   mem_usage.for_lu/1e6, mem_usage.total_needed/1e6);
-            fflush(stdout);
-            options.Fact = FACTORED; /* Indicate the factored form of A is supplied. */
-            B.ncol = 1;
-            dirty = false;
-        } else if ( info > 0 && lwork == -1 ) {
-            printf("** Estimated memory: %d bytes\n", info - n);
-        }
-        if ( options.PrintStat ) StatPrint(&stat);
-        StatFree(&stat);
-    }
-    for ( size_t n = 0; n < nStep; n++ ) {
-        ///set B matrix
-        Bstore= (DNformat *)B.Store;
-        rhsb=(double*)Bstore->nzval;
-        if (nup+ndn == 0) {
-            // solve seperate independent blocks???
-            std::cout << "Discontinuous Galerkin Not Implimented\n";
-            return;
-        } else {
-            // solve block system
-            fillB();
-        }
-
-        //solve factored system
-        StatInit(&stat);
-        options.Fact = FACTORED;
-        dgssvx(&options, &A, perm_c, perm_r, etree, equed, R, C,
-               &L, &Up, work, lwork, &B, &X, &rpg, &rcond, ferr, berr,
-               &mem_usage, &stat, &info);
-
-        if( n == 1 ) printf("Triangular solve: dgssvx() returns info %d\n", info);
-
-        //update U_
-        if ( info == 0 || info == N_+1 ) {
-
-            /* This is how you could access the solution matrix. */
-            Xstore = (DNformat *)X.Store;
-            rhsx = (double*)(Xstore->nzval);
-            if(transform) {
-                for ( size_t i = 0; i <  N_ ; i++ ) {
-                    Ub[i] = Utran[i];
-                    Utran[i]=rhsx[i];
-                }
-            } else {
-                for ( size_t i = 0; i <  N_ ; i++ ) {
-                    Ub[i] = U_[i];
-                    U_[i]=rhsx[i];
-                }
+            if(printinout) {
+                std::cout << "Uvec in = ";
+                for(int i=0; i< nbas; i++) std::cout<< gsl_vector_get(UVec,i) << ", ";
+                std::cout <<  std::endl;
             }
-        } else {
-            std::cout << "ERROR: Matrix Solution Failed   info = " << info << std::endl;
+            // transform U  -  (U*window)-> Utran
+            gsl_linalg_LU_solve(Mforw,permut,UVec,TranVec);
+            // update Utran -
+            // fillB
+            gsl_blas_dgemv(CblasNoTrans,1.0,Right,TranVec,0.0,BVec);
+            if(ntime == 3) {
+                // make vector view from Ub
+                UbView = gsl_vector_view_array (Ub+ubstart, nbas);
+                // fill Cvec
+                gsl_blas_dgemv(CblasNoTrans,1.0,FarRight,&UbView.vector,0.0,CVec);
+                gsl_blas_daxpy(1.0,CVec,BVec);
+                // save TranVec to Ub
+                for( size_t i=0; i<nbas; i++) Ub[ubstart+i] = gsl_vector_get(TranVec,i);
+                ubstart += nbas;
+            }
+            //    solve
+            gsl_linalg_LU_solve(Left,lpermut,BVec,TranVec);
+            // inverse transform TranVec
+            gsl_blas_dgemv(CblasNoTrans,1.0,Mback,TranVec,0.0,UVec);
+            if(printinout) {
+                std::cout << "Uvec out = ";
+                for(int i=0; i< nbas; i++) std::cout<< gsl_vector_get(UVec,i) << ", ";
+                std::cout <<  std::endl;
+            }
+
+            // sum to new U
+            istart = iwin;
+
+            if( istart < 0 ) istart= N_+istart;
+            for( size_t i=0; i<winwid; i++) {
+                Usum[istart] += gsl_vector_get(UVec,i);
+                istart++;
+                if(istart == N_) istart = 0;
+            }
+
         }
-        StatFree(&stat);
         cStep++;
         totCFL += CFL;
+        double * temp;
+        temp = U_;
+        U_ = Usum;
+        Usum = temp;
+        for(size_t n=0; n<N_; n++) Usum[n] = 0.0;
     }
 }
 
-void ImpWidget::setImplicit(double value) {
+void EnvWidget::setImplicit(double value) {
     if(value == impl) return;
     dirty = true;
     impl = value;
     beta = 1 - impl - back;
 }
 
-void ImpWidget::setBackward(double value) {
+void EnvWidget::setBackward(double value) {
     if(value == back) return;
     dirty = true;
     back = value;
     beta = 1 -impl - back;
 }
 
-void ImpWidget::updateCoef(int value) {
+void EnvWidget::updateCoef(int value) {
     if( value != method ) setMethod(value);
-    if(ncoef != nblock*nvar*ntime) {
-        if( ncoef != 0 ) {
-            delete[] coef;
-        }
-        ncoef = nblock*nvar*ntime;
-        coef = new double[ncoef];
-    }
     switch(method) {
+    default:
+        method = 0;
     case 0 : // LSP - central time
         lspc();
         break;
@@ -408,251 +340,27 @@ void ImpWidget::updateCoef(int value) {
     case 3 : // FEM - Adams
         fema();
     }
-    std::cout << " Coefficients\n";
-    for(int i= 0; i<ncoef; i++) {
-        std::cout << "  "<< coef[i] ;
-    }
-    std::cout << std::endl;
 
 }
 
-void ImpWidget::setCFL(const double value) {
+void EnvWidget::setCFL(const double value) {
     if(CFL == value) return;
     dirty = true;
     CFL = value;
     //updateCoef(method);
 }
 
-void ImpWidget::fillA() {
-    /*
-    * nvar = 5
-    * nblock = 1
-    * ivar = 2
-    * N_ = 8
-    * nup = (nvar-ivar) = 3
-    * ndn = ivar = 2
-    *
-    *   *0*     *1*     *2*     *3*     *4*     *5*     *6*     *7*
-    *                  nup-1                           N_-ndn    N_-1
-    *
-    *  c[2]    c[3]    c[4]      0       0       0     c[0]    c[1]    *0*
-    *  c[1]    c[2]    c[3]    c[4]      0       0       0     c[0]    *1*  ndn-1
-    *  c[0]    c[1]    c[2]    c[3]    c[4]      0       0       0     *2*
-    *    0     c[0]    c[1]    c[2]    c[3]    c[4]      0       0     *3*
-    *    0       0     c[0]    c[1]    c[2]    c[3]    c[4]      0     *4*
-    *    0       0       0     c[0]    c[1]    c[2]    c[3]    c[4]    *5*  N_-nup
-    *  c[4]      0       0       0     c[0]    c[1]    c[2]    c[3]    *6*
-    *  c[3]    c[4]      0       0       0     c[0]    c[1]    c[2]    *7*
-    *
-    *         nup-2
-    *
-    */
-    int col,row;
-    int cbeg;
-    double temp;
-    xa[0] = 0;
-    nnz=0;
-    //std::cout << " --col-  -row-  -cbeg-\n";
-    for(col = 0; col < N_; col++) {
-        if(col < nup ) { // upper left
-            row = 0;
-            cbeg = ivar + col;
-        } else if( col >= N_-ndn ) { // upper right
-            row = 0;
-            cbeg = col -(N_ - ndn);
-            //std::cout << col << "  " << row  << "  " << cbeg << std::endl;
-        } else { // middle
-            row = col - nup +1;
-            cbeg = nvar-1;
-        }
-        //std::cout << col << "  " << row << "  "<< nvar << "  " << cbeg << std::endl;
-        for(; cbeg >= 0 ; cbeg--) {
-            temp = coef[cbeg];
-            if(temp != 0.0 ) {
-                a[nnz]=temp;
-                asub[nnz] = row;
-                nnz ++;
-            }
-            row++;
-            if(row >= N_) break;
-        }
-        cbeg = 0;
-        if(col < (nup-1)) { // lower left
-            row = col + N_ - nup +1 ;
-            cbeg = nvar - 1;
-        } else if( col >= N_-ndn ) { // lower right
-            row = col - nup +1;
-            cbeg = nvar-1;
-        }
-        if(cbeg) {
-            std::cout << col << "  " << row  << "  " << cbeg << std::endl;
-            for(; cbeg >= 0 ; cbeg--) {
-                temp = coef[cbeg];
-                if(temp != 0.0 ) {
-                    a[nnz]=temp;
-                    asub[nnz] = row;
-                    nnz ++;
-                }
-                row++;
-                if(row >= N_) break;
-            }
-        }
-        xa[col+1] = nnz;
-    }
-}
-
-void ImpWidget::blockFillA() {
-    /*
-    * nvar = 5
-    * nblock = 2
-    * ivar = 2
-    * N_ = 8
-    * ndn = ivar
-    * nup = nvar-ivar
-    *
-    *  *0*     *1*  |   *2*     *3*  |   *4*     *5*   |  *6*     *7*
-    *                  nup-1                             N_-ndn    N_-1
-    *
-    * c0[2]   c0[3] |  c0[4]      0  |     0       0   |  c0[0]   c0[1]    *0*
-    * c1[2]   c1[3] |  c1[4]      0  |     0       0   |  c1[0]   c1[1]    *1*
-    * ---------------------------------------------------------------------
-    * c0[0]   c0[1] |  c0[2]   c0[3] |  c0[4]      0   |     0       0     *2*
-    * c1[0]   c1[1] |  c1[2]   c1[3] |  c1[4]      0   |     0       0     *3*
-    * ---------------------------------------------------------------------
-    *    0       0  |  c0[0]   c0[1] |  c0[2]   c0[3]  |  c0[4]      0     *4*
-    *    0       0  |  c1[0]   c1[1] |  c1[2]   c1[3]  |  c1[4]      0     *5*
-    * ---------------------------------------------------------------------
-    * c0[4]      0  |     0       0  |  c0[0]   c0[1]  |  c0[2]   c0[3]    *6*
-    * c1[4]      0  |     0       0  |  c1[0]   c1[1]  |  c1[2]   c1[3]    *7*
-    *
-    */
-    int bnup = nup/nblock;
-    int bndn = (ndn+1)/nblock;
-    int bivar = (ivar+nblock-1)/nblock;
-    int bN = N_/nblock;
-    int bcol,bbeg;// block column, block row, block begin
-    int bcolcol; // column within block;
-    int bnvar=bndn + bnup;
-    int col,row;
-    int ccol;  // coef column within block
-    double temp;
-
-    xa[0] = 0;
-    nnz=0;
-    for(col = 0; col < N_; col++) {
-        bcol = col/nblock;
-        bcolcol = col - bcol*nblock;
-        if(bcol < bnup ) { // upper left
-            row = 0;
-            bbeg = bivar + bcol;
-        } else if( bcol >= bN-bndn ) { // upper right
-            row = 0;
-            bbeg = bcol -(bN - bndn);
-        } else { // middle
-            row = (bcol - bnup +1)*nblock;
-            bbeg = bnvar-1;
-        }
-        //std::cout << col << "  " << row << "  "<< nvar << "  " << bbeg << std::endl;
-        for(; bbeg >= 0 ; bbeg--) {
-            ccol = (bbeg-bivar)*nblock + bcolcol + ivar;
-            if(ccol < 0) continue;
-            if(ccol >= nvar) continue;
-            for(int nb=0; nb< nblock; nb++ ) {
-                temp = coef[ccol+nb*nvar*ntime];
-                if(temp != 0.0 ) {
-                    a[nnz]=temp;
-                    asub[nnz] = row;
-                    nnz ++;
-                }
-                row++;
-                if(row >= N_) break;
-            }
-            if(row >= N_) break;
-        }
-        bbeg = 0;
-        if(bcol < (bnup-1)) { // lower left
-            row = (bcol + bN - bnup +1) *nblock;
-            bbeg = bnvar - 1;
-        } else if( bcol >= bN-bndn ) { // lower right
-            row = (bcol - bnup +1)*nblock;
-            bbeg = bnvar-1;
-        }
-        if(bbeg) {
-            for(; bbeg >= 0 ; bbeg--) {
-                ccol = (bbeg-bivar)*nblock + bcolcol + ivar;
-                if(ccol < 0) break;
-                if(ccol >= nvar) continue;
-                for(int nb=0; nb< nblock; nb++ ) {
-                    temp = coef[ccol+nb*nvar*ntime];
-                    if(temp != 0.0 ) {
-                        a[nnz]=temp;
-                        asub[nnz] = row;
-                        nnz ++;
-                    }
-                    row++;
-                    if(row >= N_) break;
-                }
-                if(row >= N_) break;
-            }
-        }
-        xa[col+1] = nnz;
-    }
-}
-
-void ImpWidget::fillB() {
-    int ui;
-    if(ibase == 3) { // Fourier Bases
-        //need to translate U_ to Utran for each block
-    }
-    for( int i =0; i<N_; i += nblock ) {
-        for(int nb = 0; nb < nblock; nb++) {
-            rhsb[i+nb] = 0;
-            ui = i-ndn;
-            if(ui < 0) ui = N_+ui;
-            //std::cout << i << " U_[n]  \n";
-            for( int j =0; j<nvar; j++ ) {
-                //std::cout << ui << "  ";
-                if(transform) {
-                    rhsb[i+nb] += coef[nb*nvar*ntime + nvar + j]*Utran[ui];
-                } else {
-                    rhsb[i+nb] += coef[nb*nvar*ntime + nvar + j]*U_[ui];
-                }
-                //std::cout << "coef [ "<< nb*nvar*ntime + nvar + j << " ] * U_[ " << ui << " ]  = ";
-                //std::cout << coef[nb*nvar*ntime + nvar + j]<< " * " << U_[ui] << std::endl;
-                ui++;
-                if(ui == N_) ui=0;
-            }
-            //for(int nb = 0; nb < nblock; nb++) {
-            //std::cout << "b[ " << i+nb << " ] = " << rhsb[i+nb] << std::endl;
-            //}
-        }
-    }
-    if(ntime == 2) return;
-    for( int i =0; i<N_; i+=nblock ) {
-        for(int nb = 0; nb < nblock; nb++) {
-            ui = i-ndn;
-            if(ui < 0) ui = N_+ui;
-            for( int j =0; j<nvar; j++) {
-                rhsb[i+nb] += coef[nb*nvar*ntime + 2*nvar + j]*Ub[ui];
-            }
-            ui++;
-            if(ui == N_) ui=0;
-        }
-    }
-}
-
-
-void ImpWidget::setMethod(int index) {
+void EnvWidget::setMethod(int index) {
     if( index == method ) return;
-    transform = false;
     dirty = true;
     method = index;
     ntime=2;
+
     switch( method ) {
     default:
         method = 0;
     case 0:
-        setTitle( tr("LSP - Central"));
+        setTitle( tr("Envelope - LSP"));
         if(back != 0.0) {
             impl = 0.5;
             beta = 0.5;
@@ -660,7 +368,7 @@ void ImpWidget::setMethod(int index) {
         }
         break;
     case 1:
-        setTitle( tr("LSP - Adams"));
+        setTitle( tr("Envelope - LSP - Adams"));
         ntime=3;
         if(back == 0.0) {
             impl = 5.0/12;
@@ -669,7 +377,7 @@ void ImpWidget::setMethod(int index) {
         }
         break;
     case 2:
-        setTitle( tr("FEM - Central"));
+        setTitle( tr("Envelope - FEM"));
         if(back != 0.0) {
             impl = 0.5;
             beta = 0.5;
@@ -677,7 +385,7 @@ void ImpWidget::setMethod(int index) {
         }
         break;
     case 3:
-        setTitle( tr("FEM - Adams"));
+        setTitle( tr("Envelope - FEM - Adams"));
         ntime=3;
         if(back == 0.0) {
             impl = 5.0/12;
@@ -690,203 +398,204 @@ void ImpWidget::setMethod(int index) {
     backInput->setValue(back);
 }
 
-void ImpWidget::lspc() {
-
+void EnvWidget::lspc() {
     double a0,a1,p2;
+    //double den0,den1,den2,den3;
+    //double cimp,cbet;
 
     a0 = impl * impl * CFL * CFL;//a2
     a1 = impl * beta * CFL * CFL;//ab
+    //cimp = CFL*impl;
+    //cbet = CFL*beta;
     p2 = pi * pi;
-    transform = false;
-    switch(ibase) {
+    //den0 = 1.0/(pi+2.0);
+    //den1 = 1.0/(3*pi+16);
+    //den2 = 1.0/(3*pi + 4);
+    //den3 = 1.0/(3*pi + 8);
+    switch(nbas) {
     default:
-    case 0: // LSP - central time - linear
-        /*[-C^2*a^2 + 1/6, 2*C^2*a^2 + 2/3, -C^2*a^2 + 1/6, -C^2*a*b - 1/2*C*a -
-        1/2*C*b - 1/6, 2*C^2*a*b - 2/3, -C^2*a*b + 1/2*C*a + 1/2*C*b - 1/6]*/
-        coef[0]= -a0 + 1.0/6.0;
-        coef[1]=  2.0*a0 + 2.0/3.0;
-        coef[2]=  -a0 + 1.0/6.0;
+        allocate_gsl(4);
+    case 4:
+        gsl_matrix_set(Left,0,0,1);
+        gsl_matrix_set(Left,0,1,0);
+        gsl_matrix_set(Left,0,2,0);
+        gsl_matrix_set(Left,0,3,0);
 
-        coef[3]=  a1 + 0.5*CFL + 1.0/6.0;
-        coef[4]=  -2.0*a1 + 2.0/3.0;
-        coef[5]=  a1 - 0.5*CFL + 1.0/6.0;
+        gsl_matrix_set(Right,0,0,1);
+        gsl_matrix_set(Right,0,1,0);
+        gsl_matrix_set(Right,0,2,0);
+        gsl_matrix_set(Right,0,3,0);
+
+
+        gsl_matrix_set(Left,1,0,0);
+        gsl_matrix_set(Left,1,1,0.25*p2*a0 + 1);
+        gsl_matrix_set(Left,1,2,0);
+        gsl_matrix_set(Left,1,3,0);
+
+        gsl_matrix_set(Right,1,0,0);
+        gsl_matrix_set(Right,1,1,-0.25*p2*a1 + 1);
+        gsl_matrix_set(Right,1,2,0);
+        gsl_matrix_set(Right,1,3,-0.5*pi*CFL);
+
+
+        gsl_matrix_set(Left,2,0,0);
+        gsl_matrix_set(Left,2,1,0);
+        gsl_matrix_set(Left,2,2,p2*a0 + 1);
+        gsl_matrix_set(Left,2,3,0);
+
+        gsl_matrix_set(Right,2,0,0);
+        gsl_matrix_set(Right,2,1,0);
+        gsl_matrix_set(Right,2,2,-p2*a1 + 1);
+        gsl_matrix_set(Right,2,3,0);
+
+
+        gsl_matrix_set(Left,3,0,0);
+        gsl_matrix_set(Left,3,1,0);
+        gsl_matrix_set(Left,3,2,0);
+        gsl_matrix_set(Left,3,3,0.25*p2*a0 + 1);
+
+        gsl_matrix_set(Right,3,0,0);
+        gsl_matrix_set(Right,3,1,0.5*pi*CFL);
+        gsl_matrix_set(Right,3,2,0);
+        gsl_matrix_set(Right,3,3,-0.25*p2*a1 + 1);
         break;
-    case 1: // LSP - central time - raised cosine
-        /*[-1/8*pi^2*C^2*a^2 + 1/8, 1/4*pi^2*C^2*a^2 + 3/4, -1/8*pi^2*C^2*a^2 +
-        1/8, -1/8*pi^2*C^2*a*b - 1/2*C*a - 1/2*C*b - 1/8, 1/4*pi^2*C^2*a*b -
-        3/4, -1/8*pi^2*C^2*a*b + 1/2*C*a + 1/2*C*b - 1/8] */
-
-        coef[0]= -0.125*p2*a0 + 0.125;
-        coef[1]=  0.25*p2*a0 + 0.75;
-        coef[2]=  -0.125*p2*a0 + 0.125;
-
-        coef[3]=  0.125*p2*a1 + 0.5*CFL + 0.125;
-        coef[4]=  -0.25*p2*a1 + 0.75;
-        coef[5]=  0.125*p2*a1 - 0.5*CFL + 0.125;
+    case 8:
+        gsl_matrix_set_all(Left,0.0);
+        gsl_matrix_set_all(Right,0.0);
+        gsl_matrix_set(Left,0,0,1);
+        gsl_matrix_set(Right,0,0,1);
+        gsl_matrix_set(Left,1,1,0.0625*p2*a0 + 1);
+        gsl_matrix_set(Right,1,1,-0.0625*p2*a1 + 1);
+        gsl_matrix_set(Right,1,5,-0.25*(pi)*CFL);
+        gsl_matrix_set(Left,2,2,0.25*p2*a0 + 1);
+        gsl_matrix_set(Right,2,2,-0.25*p2*a1 + 1);
+        gsl_matrix_set(Right,2,6,-0.5*(pi)*CFL);
+        gsl_matrix_set(Left,3,3,0.5625*p2*a0 + 1);
+        gsl_matrix_set(Right,3,3,-0.5625*p2*a1 + 1);
+        gsl_matrix_set(Right,3,7,-0.75*(pi)*CFL);
+        gsl_matrix_set(Left,4,4,p2*a0 + 1);
+        gsl_matrix_set(Right,4,4,-p2*a1 + 1);
+        gsl_matrix_set(Left,5,5,0.0625*p2*a0 + 1);
+        gsl_matrix_set(Right,5,1,0.25*(pi)*CFL);
+        gsl_matrix_set(Right,5,5,-0.0625*p2*a1 + 1);
+        gsl_matrix_set(Left,6,6,0.25*p2*a0 + 1);
+        gsl_matrix_set(Right,6,2,0.5*(pi)*CFL);
+        gsl_matrix_set(Right,6,6,-0.25*p2*a1 + 1);
+        gsl_matrix_set(Left,7,7,0.5625*p2*a0 + 1);
+        gsl_matrix_set(Right,7,3,0.75*(pi)*CFL);
+        gsl_matrix_set(Right,7,7,-0.5625*p2*a1 + 1);
         break;
-    case 2: //LSP - central time - Peicewise parabolic
-//
-//    [-C^2*a^2 + 1/10, 2*C^2*a^2 + 4/5, -C^2*a^2 + 1/10, 0, 0]
-        coef[0]= -a0 + 0.1;
-        coef[1]= 2.0*a0 + 0.8;
-        coef[2]= -a0 + 0.1;
-        coef[3] = 0.0;
-        coef[4] = 0.0;
+    case 15:
+        gsl_matrix_set_all(Left,0.0);
+        gsl_matrix_set_all(Right,0.0);
 
-//
-//[-C^2*a*b - 1/2*C*a - 1/2*C*b - 1/10, 2*C^2*a*b - 4/5, -C^2*a*b +1/2*C*a + 1/2*C*b - 1/10, 0, 0]
-//        negate
-        coef[5] = a1 + 0.5*CFL + 0.1;
-        coef[6] = -2.0*a1 + 0.8;
-        coef[7] = a1 - 0.5*CFL + 0.1;
-        coef[8] = 0.0;
-        coef[9] = 0.0;
 
-//
-//    [1/4*C^2*a^2 - 1/10, -2*C^2*a^2 + 1/5, 7/2*C^2*a^2 + 4/5, -2*C^2*a^2 +1/5, 1/4*C^2*a^2 - 1/10]
-
-        coef[10] = 0.25*a0 - 0.1;
-        coef[11] = -2.0*a0 + 0.2;
-        coef[12] = 3.5*a0 + 0.8;
-        coef[13] = -2.0*a0 + 0.2;
-        coef[14] = 0.25*a0 - 0.1;
-//
-//
-//   [1/4*C^2*a*b + 1/4*C*a + 1/4*C*b + 1/10,
-//	    -2*C^2*a*b - C*a - C*b - 1/5,
-//	7/2*C^2*a*b - 4/5,
-//	-2*C^2*a*b + C*a + C*b - 1/5,
-//	1/4*C^2*a*b - 1/4*C*a -1/4*C*b + 1/10]
-//	    negate
-        coef[15] = -0.25*a1 - 0.25*CFL - 0.1;
-        coef[16] = 2.0*a1 + CFL + 0.2;
-        coef[17] = -3.5*a1 + 0.8;
-        coef[18] = 2*a1 - CFL + 0.2;
-        coef[19] = -0.25*a1 + 0.25*CFL - 0.1;
-
+        gsl_matrix_set(Left,0,0,1);
+        gsl_matrix_set(Right,0,0,1);
+        gsl_matrix_set(Left,1,1,4.0/225*p2*a0 + 1);
+        gsl_matrix_set(Right,1,1,-4.0/225*p2*a1 + 1);
+        gsl_matrix_set(Right,1,8,-2.0/15*(pi)*CFL);
+        gsl_matrix_set(Left,2,2,16.0/225*p2*a0 + 1);
+        gsl_matrix_set(Right,2,2,-16.0/225*p2*a1 + 1);
+        gsl_matrix_set(Right,2,9,-4.0/15*(pi)*CFL);
+        gsl_matrix_set(Left,3,3,4.0/25*p2*a0 + 1);
+        gsl_matrix_set(Right,3,3,-4.0/25*p2*a1 + 1);
+        gsl_matrix_set(Right,3,10,-2.0/5*(pi)*CFL);
+        gsl_matrix_set(Left,4,4,64.0/225*p2*a0 + 1);
+        gsl_matrix_set(Right,4,4,-64.0/225*p2*a1 + 1);
+        gsl_matrix_set(Right,4,11,-8.0/15*(pi)*CFL);
+        gsl_matrix_set(Left,5,5,4.0/9*p2*a0 + 1);
+        gsl_matrix_set(Right,5,5,-4.0/9*p2*a1 + 1);
+        gsl_matrix_set(Right,5,12,-2.0/3*(pi)*CFL);
+        gsl_matrix_set(Left,6,6,16.0/25*p2*a0 + 1);
+        gsl_matrix_set(Right,6,6,-16.0/25*p2*a1 + 1);
+        gsl_matrix_set(Right,6,13,-4.0/5*(pi)*CFL);
+        gsl_matrix_set(Left,7,7,196.0/225*p2*a0 + 1);
+        gsl_matrix_set(Right,7,7,-196.0/225*p2*a1 + 1);
+        gsl_matrix_set(Right,7,14,-14.0/15*(pi)*CFL);
+        gsl_matrix_set(Left,8,8,4.0/225*p2*a0 + 1);
+        gsl_matrix_set(Right,8,1,2.0/15*(pi)*CFL);
+        gsl_matrix_set(Right,8,8,-4.0/225*p2*a1 + 1);
+        gsl_matrix_set(Left,9,9,16.0/225*p2*a0 + 1);
+        gsl_matrix_set(Right,9,2,4.0/15*(pi)*CFL);
+        gsl_matrix_set(Right,9,9,-16.0/225*p2*a1 + 1);
+        gsl_matrix_set(Left,10,10,4.0/25*p2*a0 + 1);
+        gsl_matrix_set(Right,10,3,2.0/5*(pi)*CFL);
+        gsl_matrix_set(Right,10,10,-4.0/25*p2*a1 + 1);
+        gsl_matrix_set(Left,11,11,64.0/225*p2*a0 + 1);
+        gsl_matrix_set(Right,11,4,8.0/15*(pi)*CFL);
+        gsl_matrix_set(Right,11,11,-64.0/225*p2*a1 + 1);
+        gsl_matrix_set(Left,12,12,4.0/9*p2*a0 + 1);
+        gsl_matrix_set(Right,12,5,2.0/3*(pi)*CFL);
+        gsl_matrix_set(Right,12,12,-4.0/9*p2*a1 + 1);
+        gsl_matrix_set(Left,13,13,16.0/25*p2*a0 + 1);
+        gsl_matrix_set(Right,13,6,4.0/5*(pi)*CFL);
+        gsl_matrix_set(Right,13,13,-16.0/25*p2*a1 + 1);
+        gsl_matrix_set(Left,14,14,196.0/225*p2*a0 + 1);
+        gsl_matrix_set(Right,14,7,14.0/15*(pi)*CFL);
+        gsl_matrix_set(Right,14,14,-196.0/225*p2*a1 + 1);
         break;
-    case 3: //LSP - Fourier 4 - linear window
-        double p3,den0,den1,den2,den3;
-        p3=p2*pi;
-        den0=(4.0/p2 + 1.0);
-        den1=(30.0/p2 + 1.0);
-        den2=(14.0/p2 + 3.0);
-        den3=(32.0/p2 + 9.0);
+    case 16:
+        gsl_matrix_set_all(Left,0.0);
+        gsl_matrix_set_all(Right,0.0);
+        gsl_matrix_set(Left,0,0,1);
+        gsl_matrix_set(Right,0,0,1);
+        gsl_matrix_set(Left,1,1,0.015625*p2*a0 + 1);
+        gsl_matrix_set(Right,1,1,-0.015625*p2*a1 + 1);
+        gsl_matrix_set(Right,1,9,-0.125*(pi)*CFL);
+        gsl_matrix_set(Left,2,2,0.0625*p2*a0 + 1);
+        gsl_matrix_set(Right,2,2,-0.0625*p2*a1 + 1);
+        gsl_matrix_set(Right,2,10,-0.25*(pi)*CFL);
+        gsl_matrix_set(Left,3,3,0.140625*p2*a0 + 1);
+        gsl_matrix_set(Right,3,3,-0.140625*p2*a1 + 1);
+        gsl_matrix_set(Right,3,11,-0.375*(pi)*CFL);
+        gsl_matrix_set(Left,4,4,0.25*p2*a0 + 1);
+        gsl_matrix_set(Right,4,4,-0.25*p2*a1 + 1);
+        gsl_matrix_set(Right,4,12,-0.5*(pi)*CFL);
+        gsl_matrix_set(Left,5,5,25/64*p2*a0 + 1);
+        gsl_matrix_set(Right,5,5,-25/64*p2*a1 + 1);
+        gsl_matrix_set(Right,5,13,-0.625*(pi)*CFL);
+        gsl_matrix_set(Left,6,6,9/16*p2*a0 + 1);
+        gsl_matrix_set(Right,6,6,-9/16*p2*a1 + 1);
+        gsl_matrix_set(Right,6,14,-0.25*(pi)*CFL);
+        gsl_matrix_set(Left,7,7,49/64*p2*a0 + 1);
+        gsl_matrix_set(Right,7,7,-49/64*p2*a1 + 1);
+        gsl_matrix_set(Right,7,15,-0.875*(pi)*CFL);
+        gsl_matrix_set(Left,8,8,p2*a0 + 1);
+        gsl_matrix_set(Right,8,8,-p2*a1 + 1);
+        gsl_matrix_set(Left,9,9,0.015625*p2*a0 + 1);
+        gsl_matrix_set(Right,9,1,0.125*(pi)*CFL);
+        gsl_matrix_set(Right,9,9,-0.015625*p2*a1 + 1);
+        gsl_matrix_set(Left,10,10,0.0625*p2*a0 + 1);
+        gsl_matrix_set(Right,10,2,0.25*(pi)*CFL);
+        gsl_matrix_set(Right,10,10,-0.0625*p2*a1 + 1);
+        gsl_matrix_set(Left,11,11,0.140625*p2*a0 + 1);
+        gsl_matrix_set(Right,11,3,0.375*(pi)*CFL);
+        gsl_matrix_set(Right,11,11,-0.140625*p2*a1 + 1);
+        gsl_matrix_set(Left,12,12,0.25*p2*a0 + 1);
+        gsl_matrix_set(Right,12,4,0.5*(pi)*CFL);
+        gsl_matrix_set(Right,12,12,-0.25*p2*a1 + 1);
+        gsl_matrix_set(Left,13,13,25/64*p2*a0 + 1);
+        gsl_matrix_set(Right,13,5,0.625*(pi)*CFL);
+        gsl_matrix_set(Right,13,13,-25/64*p2*a1 + 1);
+        gsl_matrix_set(Left,14,14,9/16*p2*a0 + 1);
+        gsl_matrix_set(Right,14,6,0.25*(pi)*CFL);
+        gsl_matrix_set(Right,14,14,-9/16*p2*a1 + 1);
+        gsl_matrix_set(Left,15,15,49/64*p2*a0 + 1);
+        gsl_matrix_set(Right,15,7,0.875*(pi)*CFL);
+        gsl_matrix_set(Right,15,15,-49/64*p2*a1 + 1);
 
-        int ic=0;
-        coef[ic++] = -(0.25*a0 - 1.0/6.0)/den0;
-        coef[ic++] = -0.25*a0/den0;
-        coef[ic++] = 4.0/(den0*p3);
-        coef[ic++] = 0.0;
-        coef[ic++] = (0.5*a0 + 2.0/3.0)/den0;
-        coef[ic++] = (0.5*a0 + 4.0/p2)/den0;
-        coef[ic++] = 0.0;
-        coef[ic++] = 0.0;
-        coef[ic++] = -(0.25*a0 - 1.0/6.0)/den0;
-        coef[ic++] = -0.25*a0/den0;
-        coef[ic++] = -4.0/(den0*p3);
-        coef[ic++] = 0.0;
-
-        coef[ic++] = (0.25*a1 + 0.25*CFL + 1.0/6.0)/den0;
-        coef[ic++] = (0.25*a1 + CFL/p2)/den0;
-        coef[ic++] = (0.5*CFL/pi + 4.0/p3)/den0;
-        coef[ic++] = 0.25*(CFL/pi)/den0;
-        coef[ic++] = -(0.5*a1 - 2.0/3.0)/den0;
-        coef[ic++] = -(0.5*a1 - 4.0/p2)/den0;
-        coef[ic++] = -(CFL/pi)/den0;
-        coef[ic++] = -0.5*(CFL/pi)/den0;
-        coef[ic++] = (0.25*a1 - 0.25*CFL + 1.0/6.0)/den0;
-        coef[ic++] = (0.25*a1 - CFL/p2)/den0;
-        coef[ic++] = (0.5*CFL/pi - 4.0/p3)/den0;
-        coef[ic++] = 0.25*(CFL/pi)/den0;
-
-
-        coef[ic++] = -1.5*a0/den1;
-        coef[ic++] = -0.125*(p2*a0 - 9.0*a0 - 12.0/p2 + 4.0)/den1;
-        coef[ic++] = -0.75*pi*a0/den1;
-        coef[ic++] = -4.0/9.0*(13.0*a0/pi + 28.0/p3)/den1;
-        coef[ic++] = 3.0*(a0 + 8.0/p2)/den1;
-        coef[ic++] = 0.25*(2.0*p2*a0 + 9.0*a0 + 12.0/p2 + 8.0)/den1;
-        coef[ic++] = 0.0;
-        coef[ic++] = 0.0;
-        coef[ic++] = -1.5*a0/den1;
-        coef[ic++] = -0.125*(p2*a0 - 9.0*a0 - 12.0/p2 + 4.0)/den1;
-        coef[ic++] = 0.75*pi*a0/den1;
-        coef[ic++] = 4.0/9.0*(13.0*a0/pi + 28.0/p3)/den1;
-
-        coef[ic++] = 1.5*(a1 + 4.0*CFL/p2)/den1;
-        coef[ic++] = 0.125*(p2*a1 - 9.0*a1 - 6.0*CFL + 12.0/p2 - 4.0)/den1;
-        coef[ic++] = 0.25*(3.0*pi*a1 + pi*CFL)/den1;
-        coef[ic++] = 2.0/9.0*(26.0*a1/pi - 9.0*CFL/pi - 56.0/p3)/den1;
-        coef[ic++] = -3.0*(a1 - 8.0/p2)/den1;
-        coef[ic++] = -0.25*(2.0*p2*a1 + 9.0*a1 - 12.0/p2 - 8.0)/den1;
-        coef[ic++] = -(pi*CFL)/den1;
-        coef[ic++] = -28.0/3.0*(CFL/pi)/den1;
-        coef[ic++] = 1.5*(a1 - 4.0*CFL/p2)/den1;
-        coef[ic++] = 0.125*(p2*a1 - 9.0*a1 + 6.0*CFL + 12.0/p2 - 4.0)/den1;
-        coef[ic++] = -0.25*(3.0*pi*a1 - pi*CFL)/den1;
-        coef[ic++] = -2.0/9.0*(26.0*a1/pi + 9.0*CFL/pi - 56.0/p3)/den1;
-
-
-        coef[ic++] = -72.0/(den2*p3);
-        coef[ic++] = 9.0/4.0*pi*a0/den2;
-        coef[ic++] = -0.375*(p2*a0 - 3.0*a0 + 12.0/p2 + 4.0)/den2;
-        coef[ic++] = 6.0*a0/den2;
-        coef[ic++] = 0.0;
-        coef[ic++] = 0.0;
-        coef[ic++] = 0.75*(2.0*p2*a0 + 3.0*a0 - 12.0/p2 + 8.0)/den2;
-        coef[ic++] = 4.0*(5.0*a0 + 8.0/p2)/den2;
-        coef[ic++] = 72.0/(den2*p3);
-        coef[ic++] = -9.0/4.0*pi*a0/den2;
-        coef[ic++] = -0.375*(p2*a0 - 3.0*a0 + 12.0/p2 + 4.0)/den2;
-        coef[ic++] = 6.0*a0/den2;
-
-        coef[ic++] = -9.0*(CFL/pi + 8.0/p3)/den2;
-        coef[ic++] = -0.75*(3.0*pi*a1 + pi*CFL)/den2;
-        coef[ic++] = 0.375*(p2*a1 - 3.0*a1 - 6.0*CFL - 12.0/p2 - 4.0)/den2;
-        coef[ic++] = -2.0/3.0*(9.0*a1 + 40.0*CFL/p2)/den2;
-        coef[ic++] = 18.0*(CFL/pi)/den2;
-        coef[ic++] = 3.0*(pi*CFL)/den2;
-        coef[ic++] = -0.75*(2.0*p2*a1 + 3.0*a1 + 12.0/p2 - 8.0)/den2;
-        coef[ic++] = -4.0*(5.0*a1 - 8.0/p2)/den2;
-        coef[ic++] = -9.0*(CFL/pi - 8.0/p3)/den2;
-        coef[ic++] = 0.75*(3.0*pi*a1 - pi*CFL)/den2;
-        coef[ic++] = 0.375*(p2*a1 - 3.0*a1 + 6.0*CFL - 12.0/p2 - 4.0)/den2;
-        coef[ic++] = -2.0/3.0*(9.0*a1 - 40.0*CFL/p2)/den2;
-
-
-        coef[ic++] = 0.0;
-        coef[ic++] = 4.0/3.0*(13.0*a0/pi + 28.0/p3)/den3;
-        coef[ic++] = 6.0*a0/den3;
-        coef[ic++] = 0.375*(4.0*p2*a0 - 3.0*a0 + 3.0/p2 + 4.0)/den3;
-        coef[ic++] = 0.0;
-        coef[ic++] = 0.0;
-        coef[ic++] = 4.0*(5.0*a0 + 8.0/p2)/den3;
-        coef[ic++] = 0.75*(8.0*p2*a0 + 3.0*a0 - 3.0/p2 + 8.0)/den3;
-        coef[ic++] = 0.0;
-        coef[ic++] = -4.0/3.0*(13.0*a0/pi + 28.0/p3)/den3;
-        coef[ic++] = 6.0*a0/den3;
-        coef[ic++] = 0.375*(4.0*p2*a0 - 3.0*a0 + 3.0/p2 + 4.0)/den3;
-
-        coef[ic++] = -4.5*(CFL/pi)/den3;
-        coef[ic++] = -2.0/3.0*(26.0*a1/pi - 9.0*CFL/pi - 56.0/p3)/den3;
-        coef[ic++] = -2.0/3.0*(9.0*a1 + 40.0*CFL/p2)/den3;
-        coef[ic++] = -0.375*(4.0*p2*a1 - 3.0*a1 - 6.0*CFL - 3.0/p2 - 4.0)/den3;
-        coef[ic++] = 9.0*(CFL/pi)/den3;
-        coef[ic++] = 28.0*(CFL/pi)/den3;
-        coef[ic++] = -4.0*(5.0*a1 - 8.0/p2)/den3;
-        coef[ic++] = -0.75*(8.0*p2*a1 + 3.0*a1 + 3.0/p2 - 8.0)/den3;
-        coef[ic++] = -4.5*(CFL/pi)/den3;
-        coef[ic++] = 2.0/3.0*(26.0*a1/pi + 9.0*CFL/pi - 56.0/p3)/den3;
-        coef[ic++] = -2.0/3.0*(9.0*a1 - 40.0*CFL/p2)/den3;
-        coef[ic++] = -0.375*(4.0*p2*a1 - 3.0*a1 + 6.0*CFL - 3.0/p2 - 4.0)/den3;
-
-        setupTrans();
     }
+
+
+    gsl_matrix_set_all(FarRight,0.0);
+
+    gsl_linalg_LU_decomp(Left,lpermut,&signum);
+
 }
 
 
-void ImpWidget::lspa() {
+void EnvWidget::lspa() {
     double a0,a1,a2,p2,cib,cb;
     a0 = impl * impl * CFL * CFL;//a2
     a1 = impl * beta * CFL * CFL;//ab
@@ -895,346 +604,389 @@ void ImpWidget::lspa() {
     cb = CFL*back;
     p2 = pi * pi;
 
-    switch(ibase) {
-    default:
-    case 0: // LSP - Adams - linear
-        //[-C^2*a^2 + 1/6, 2*C^2*a^2 + 2/3, -C^2*a^2 + 1/6
-        // -C^2*a*b - 1/2*C*a - 1/2*C*b - 1/6, 2*C^2*a*b - 2/3, -C^2*a*b + 1/2*C*a + 1/2*C*b - 1/6
-        // -C^2*a*c - 1/2*C*c, 2*C^2*a*c, -C^2*a*c + 1/2*C*c]
-        coef[0] = 1.0 / 6.0 - a0;
-        coef[1] = 2.0 * ( 1.0 / 3.0 + a0 );
-        coef[2] = 1.0 / 6.0 - a0;
-
-        coef[3] = ( 1.0 / 3.0 + cib ) / 2.0 + a1;
-        coef[4] = 2.0 * ( 1.0 / 3.0 - a1 );
-        coef[5] = ( 1.0 / 3.0 - cib ) / 2.0 + a1;
-
-        coef[6] = cb/2.0 + a2;
-        coef[7] = -2.0*a2;
-        coef[8] = -cb/2.0 + a2;
-
-        break;
-    case 1: // LSP - Adams -raised cosine
-        //[-1/8*pi^2*C^2*a^2 + 1/8,   1/4*pi^2*C^2*a^2 + 3/4,   -1/8*pi^2*C^2*a^2 +1/8,
-        //-1/8*pi^2*C^2*a*b - 1/2*C*a - 1/2*C*b - 1/8,   1/4*pi^2*C^2*a*b -3/4,   -1/8*pi^2*C^2*a*b + 1/2*C*a + 1/2*C*b - 1/8,
-        //  -1/8*pi^2*C^2*a*c -1/2*C*c, 1/4*pi^2*C^2*a*c, -1/8*pi^2*C^2*a*c + 1/2*C*c
-
-        coef[0] = ( 1.0 - a0 * p2 ) / 8.0;
-        coef[1] = ( 3.0 + a0 * p2 ) / 4.0;
-        coef[2] = ( 1.0 - a0 * p2 ) / 8.0;
-
-        coef[3] = ( 1.0 + 4.0 * cib + a1 * p2 ) / 8.0;
-        coef[4] = ( 3.0 - a1 * p2 ) / 4.0;
-        coef[5] = ( 1.0 - 4.0 * cib + a1 * p2 ) / 8.0;
-
-        coef[6] = cb/2.0 + a2*p2/8.0;
-        coef[7] = -a2*p2/4.0;
-        coef[8] = -cb/2.0 + a2*p2/8.0;
-        break;
-    case 2: // LSP - Adams - Peicewise parabolic
-        /*[-C^2*a^2 + 1/10, 2*C^2*a^2 + 4/5, -C^2*a^2 + 1/10, 0, 0]
-        */
-        coef[0] = -a0 + 0.1;
-        coef[1] =  2.0*a0 + 0.8;
-        coef[2] =  -a0 + 0.1;
-        coef[3] =  0;
-        coef[4] =  0;
-
-//  [-C^2*a*b - 1/2*C*a - 1/2*C*b - 1/10, 2*C^2*a*b - 4/5, -C^2*a*b + 1/2*C*a + 1/2*C*b - 1/10, 0, 0]
-//       NEGATE
-        coef[5] = a1 + 0.5*cib + 0.1;
-        coef[6] = -2.0*a1 + 0.8;
-        coef[7] = a1 - 0.5*cib + 0.1;
-        coef[8] =  0;
-        coef[9] =  0;
-
-//
-//	[-C^2*a*c - 1/2*C*c, 2*C^2*a*c, -C^2*a*c + 1/2*C*c, 0, 0]
-//	    NEGATE
-        coef[10] = -a2 - 0.5*cb;
-        coef[11] =  2.0*a2;
-        coef[12] = -a2 + 0.5*cb;
-        coef[13] =  0;
-        coef[14] =  0;
-
-//
-//	 [1/4*C^2*a^2 - 1/10, -2*C^2*a^2 + 1/5, 7/2*C^2*a^2 + 4/5, -2*C^2*a^2 +1/5, 1/4*C^2*a^2 - 1/10]
-        coef[15] = 0.25*a0 - 0.1;
-        coef[16] = -2.0*a0 + 0.2;
-        coef[17] = 3.5*a0 + 0.8;
-        coef[18] = -2.0*a0 + 0.2;
-        coef[19] = 0.25*a0 - 0.1;
-
-//
-//	[1/4*C^2*a*b + 1/4*C*a + 1/4*C*b + 1/10,
-//	    -2*C^2*a*b - C*a - C*b - 1/5,
-//	7/2*C^2*a*b - 4/5,
-//	    -2*C^2*a*b + C*a + C*b - 1/5,
-//	    1/4*C^2*a*b - 1/4*C*a - 1/4*C*b + 1/10]
-//	    NEGATE
-        coef[20] =  -0.25*a1 - 0.25*cib - 0.1;
-        coef[21] =  2.0*a1 + cib + 0.2;
-        coef[22] =  -3.5*a1 + 0.8;
-        coef[23] =  2.0*a1 - cib + 0.2;
-        coef[24] =  -0.25*a1 + 0.25*cib - 0.1;
-
-//	    [1/4*C^2*a*c + 1/4*C*c,
-//	    -2*C^2*a*c - C*c,
-//	    7/2*C^2*a*c,
-//	    -2*C^2*a*c + C*c,
-//	1/4*C^2*a*c - 1/4*C*c]
-//	     NEGATE
-        coef[25] =  -0.25*a2 - 0.25*cb;
-        coef[26] =  2.0*a2 + cb;
-        coef[27] =  -3.5*a2;
-        coef[28] =  2.0*a2 - cb;
-        coef[29] =  -0.25*a2 + 0.25*cb;
-
-        break;
-    }
 }
 
 
-void ImpWidget::femc() {
-    switch(ibase) {
+void EnvWidget::femc() {
+    //double p2;
+    //double den0,den1,den2,den3;
+    double cimp,cbet;
+
+    cimp = CFL*impl;
+    cbet = CFL*beta;
+    //p2 = pi * pi;
+    //den0 = 1.0/(pi+2.0);
+    //den1 = 1.0/(3*pi+16);
+    //den2 = 1.0/(3*pi + 4);
+    //den3 = 1.0/(3*pi + 8);
+    switch(nbas) {
     default:
-        ibase = 0;
-    case 0: // FEM - central time - linear
-        coef[0] = -0.5*CFL*impl + 1.0/6.0;
-        coef[1] =  2.0/3.0;
-        coef[2] =  0.5*CFL*impl + 1.0/6.0;
+        allocate_gsl(4);
+    case 4:
+        gsl_matrix_set(Left,0,0,1);
+        gsl_matrix_set(Left,0,1,0);
+        gsl_matrix_set(Left,0,2,0);
+        gsl_matrix_set(Left,0,3,0);
 
-        coef[3] =  0.5*CFL*beta + 1.0/6.0;
-        coef[4] =  2.0/3.0;
-        coef[5] =  -0.5*CFL*beta + 1.0/6.0;
+        gsl_matrix_set(Right,0,0,1);
+        gsl_matrix_set(Right,0,1,0);
+        gsl_matrix_set(Right,0,2,0);
+        gsl_matrix_set(Right,0,3,0);
+
+
+        gsl_matrix_set(Left,1,0,0);
+        gsl_matrix_set(Left,1,1,1);
+        gsl_matrix_set(Left,1,2,0);
+        gsl_matrix_set(Left,1,3,0.5*pi*cimp);
+
+        gsl_matrix_set(Right,1,0,0);
+        gsl_matrix_set(Right,1,1,1);
+        gsl_matrix_set(Right,1,2,0);
+        gsl_matrix_set(Right,1,3,-0.5*pi*cbet);
+
+
+        gsl_matrix_set(Left,2,0,0);
+        gsl_matrix_set(Left,2,1,0);
+        gsl_matrix_set(Left,2,2,1);
+        gsl_matrix_set(Left,2,3,0);
+
+        gsl_matrix_set(Right,2,0,0);
+        gsl_matrix_set(Right,2,1,0);
+        gsl_matrix_set(Right,2,2,1);
+        gsl_matrix_set(Right,2,3,0);
+
+
+        gsl_matrix_set(Left,3,0,0);
+        gsl_matrix_set(Left,3,1,-0.5*pi*cimp);
+        gsl_matrix_set(Left,3,2,0);
+        gsl_matrix_set(Left,3,3,1);
+
+        gsl_matrix_set(Right,3,0,0);
+        gsl_matrix_set(Right,3,1,0.5*pi*cbet);
+        gsl_matrix_set(Right,3,2,0);
+        gsl_matrix_set(Right,3,3,1);
         break;
-    case 1: // FEM - central time - raised cosine
-        /*[-1/2*C*a + 1/8, 3/4, 1/2*C*a + 1/8, -1/2*C*b - 1/8, -3/4, 1/2*C*b -1/8]*/
-        coef[0] = -0.5*CFL*impl + 0.125;
-        coef[1] =  0.75;
-        coef[2] =  0.5*CFL*impl + 0.125;
-
-        coef[3] =  0.5*CFL*beta + 0.125;
-        coef[4] =  0.75;
-        coef[5] =  -0.5*CFL*beta + 0.125;
+    case 8:
+        gsl_matrix_set_all(Left,0.0);
+        gsl_matrix_set_all(Right,0.0);
+        gsl_matrix_set(Left,0,0,1);
+        gsl_matrix_set(Right,0,0,1);
+        gsl_matrix_set(Left,1,1,1);
+        gsl_matrix_set(Left,1,5,0.25*pi*cimp);
+        gsl_matrix_set(Right,1,1,1);
+        gsl_matrix_set(Right,1,5,-0.25*pi*cbet);
+        gsl_matrix_set(Left,2,2,1);
+        gsl_matrix_set(Left,2,6,0.5*pi*cimp);
+        gsl_matrix_set(Right,2,2,1);
+        gsl_matrix_set(Right,2,6,-0.5*pi*cbet);
+        gsl_matrix_set(Left,3,3,1);
+        gsl_matrix_set(Left,3,7,0.75*pi*cimp);
+        gsl_matrix_set(Right,3,3,1);
+        gsl_matrix_set(Right,3,7,-0.75*pi*cbet);
+        gsl_matrix_set(Left,4,4,1);
+        gsl_matrix_set(Right,4,4,1);
+        gsl_matrix_set(Left,5,1,-0.25*pi*cimp);
+        gsl_matrix_set(Left,5,5,1);
+        gsl_matrix_set(Right,5,1,0.25*pi*cbet);
+        gsl_matrix_set(Right,5,5,1);
+        gsl_matrix_set(Left,6,2,-0.5*pi*cimp);
+        gsl_matrix_set(Left,6,6,1);
+        gsl_matrix_set(Right,6,2,0.5*pi*cbet);
+        gsl_matrix_set(Right,6,6,1);
+        gsl_matrix_set(Left,7,3,-0.75*pi*cimp);
+        gsl_matrix_set(Left,7,7,1);
+        gsl_matrix_set(Right,7,3,0.75*pi*cbet);
+        gsl_matrix_set(Right,7,7,1);
         break;
-    case 2: // FEM - central time - Peicewise parabolic
-//
-//   [-1/2*C*a + 1/10, 4/5, 1/2*C*a + 1/10, 0, 0]
-        coef[0] = -0.5*CFL*impl + 0.1;
-        coef[1] =  0.8;
-        coef[2] =  0.5*CFL*impl + 0.1;
-        coef[3] =  0.0;
-        coef[4] =  0.0;
-//
-//   [-1/2*C*b - 1/10, -4/5, 1/2*C*b - 1/10, 0, 0]
-// negate
-        coef[5] =  0.5*CFL*beta + 0.1;
-        coef[6] =  0.8;
-        coef[7] =  -0.5*CFL*beta + 0.1;
-        coef[8] =  0.0;
-        coef[9] =  0.0;
-//
-//    [1/4*C*a - 1/10, -C*a + 1/5, 4/5, C*a + 1/5, -1/4*C*a - 1/10]
-        coef[10] = 0.25*CFL*impl - 0.1;
-        coef[11] = -CFL*impl + 0.2;
-        coef[12] = 0.8;
-        coef[13] = CFL*impl + 0.2;
-        coef[14] = -0.25*CFL*impl - 0.1;
-//
-//    [1/4*C*b + 1/10, -C*b - 1/5, -4/5, C*b - 1/5, -1/4*C*b + 1/10]
-// negate
+    case 15:
+        gsl_matrix_set_all(Left,0.0);
+        gsl_matrix_set_all(Right,0.0);
 
-        coef[15] = -0.25*CFL*beta - 0.1;
-        coef[16] = CFL*beta + 0.2;
-        coef[17] = .8;
-        coef[18] = -CFL*beta + 0.2;
-        coef[19] = 0.25*CFL*beta - 0.1;
+
+        gsl_matrix_set(Left,0,0,1);
+        gsl_matrix_set(Right,0,0,1);
+        gsl_matrix_set(Left,1,1,1);
+        gsl_matrix_set(Left,1,8,2.0/15*pi*cimp);
+        gsl_matrix_set(Right,1,1,1);
+        gsl_matrix_set(Right,1,8,-2.0/15*pi*cbet);
+        gsl_matrix_set(Left,2,2,1);
+        gsl_matrix_set(Left,2,9,4.0/15*pi*cimp);
+        gsl_matrix_set(Right,2,2,1);
+        gsl_matrix_set(Right,2,9,-4.0/15*pi*cbet);
+        gsl_matrix_set(Left,3,3,1);
+        gsl_matrix_set(Left,3,10,2.0/5*pi*cimp);
+        gsl_matrix_set(Right,3,3,1);
+        gsl_matrix_set(Right,3,10,-2.0/5*pi*cbet);
+        gsl_matrix_set(Left,4,4,1);
+        gsl_matrix_set(Left,4,11,8.0/15*pi*cimp);
+        gsl_matrix_set(Right,4,4,1);
+        gsl_matrix_set(Right,4,11,-8.0/15*pi*cbet);
+        gsl_matrix_set(Left,5,5,1);
+        gsl_matrix_set(Left,5,12,2.0/3*pi*cimp);
+        gsl_matrix_set(Right,5,5,1);
+        gsl_matrix_set(Right,5,12,-2.0/3*pi*cbet);
+        gsl_matrix_set(Left,6,6,1);
+        gsl_matrix_set(Left,6,13,4.0/5*pi*cimp);
+        gsl_matrix_set(Right,6,6,1);
+        gsl_matrix_set(Right,6,13,-4.0/5*pi*cbet);
+        gsl_matrix_set(Left,7,7,1);
+        gsl_matrix_set(Left,7,14,14.0/15*pi*cimp);
+        gsl_matrix_set(Right,7,7,1);
+        gsl_matrix_set(Right,7,14,-14.0/15*pi*cbet);
+        gsl_matrix_set(Left,8,1,-2.0/15*pi*cimp);
+        gsl_matrix_set(Left,8,8,1);
+        gsl_matrix_set(Right,8,1,2.0/15*pi*cbet);
+        gsl_matrix_set(Right,8,8,1);
+        gsl_matrix_set(Left,9,2,-4.0/15*pi*cimp);
+        gsl_matrix_set(Left,9,9,1);
+        gsl_matrix_set(Right,9,2,4.0/15*pi*cbet);
+        gsl_matrix_set(Right,9,9,1);
+        gsl_matrix_set(Left,10,3,-2.0/5*pi*cimp);
+        gsl_matrix_set(Left,10,10,1);
+        gsl_matrix_set(Right,10,3,2.0/5*pi*cbet);
+        gsl_matrix_set(Right,10,10,1);
+        gsl_matrix_set(Left,11,4,-8.0/15*pi*cimp);
+        gsl_matrix_set(Left,11,11,1);
+        gsl_matrix_set(Right,11,4,8.0/15*pi*cbet);
+        gsl_matrix_set(Right,11,11,1);
+        gsl_matrix_set(Left,12,5,-2.0/3*pi*cimp);
+        gsl_matrix_set(Left,12,12,1);
+        gsl_matrix_set(Right,12,5,2.0/3*pi*cbet);
+        gsl_matrix_set(Right,12,12,1);
+        gsl_matrix_set(Left,13,6,-4.0/5*pi*cimp);
+        gsl_matrix_set(Left,13,13,1);
+        gsl_matrix_set(Right,13,6,4.0/5*pi*cbet);
+        gsl_matrix_set(Right,13,13,1);
+        gsl_matrix_set(Left,14,7,-14.0/15*pi*cimp);
+        gsl_matrix_set(Left,14,14,1);
+        gsl_matrix_set(Right,14,7,14.0/15*pi*cbet);
+        gsl_matrix_set(Right,14,14,1);
         break;
-    case 3: // FEM - central time - Fourier 4 Linear
-        double p2,p3,p4,den0,denf1,denf2,denf3,cimp,cbet;
-	int ic;
-	cimp = CFL*impl;
-	cbet = CFL*beta;
-	p2=pi*pi;
-        p3=p2*pi;
-	p4=p3*pi;
-        den0=(4.0/p2 + 1.0);
-        denf1=((3*pi - 2*p3)/p3 + 57/p2 + 4);
-        denf2=(3*(3*pi + 2*p3)/p3 - 37/p2 - 12);
-        denf3=(3*(3*pi + 8*p3)/p3 + 247/p2 + 48);
-        ic=0;
+    case 16:
+        gsl_matrix_set_all(Left,0.0);
+        gsl_matrix_set_all(Right,0.0);
+        gsl_matrix_set(Left,0,0,1);
+        gsl_matrix_set(Right,0,0,1);
+        gsl_matrix_set(Left,1,1,1);
+        gsl_matrix_set(Left,1,9,0.125*pi*cimp);
+        gsl_matrix_set(Right,1,1,1);
+        gsl_matrix_set(Right,1,9,-0.125*pi*cbet);
+        gsl_matrix_set(Left,2,2,1);
+        gsl_matrix_set(Left,2,10,0.25*pi*cimp);
+        gsl_matrix_set(Right,2,2,1);
+        gsl_matrix_set(Right,2,10,-0.25*pi*cbet);
+        gsl_matrix_set(Left,3,3,1);
+        gsl_matrix_set(Left,3,11,0.375*pi*cimp);
+        gsl_matrix_set(Right,3,3,1);
+        gsl_matrix_set(Right,3,11,-0.375*pi*cbet);
+        gsl_matrix_set(Left,4,4,1);
+        gsl_matrix_set(Left,4,12,0.5*pi*cimp);
+        gsl_matrix_set(Right,4,4,1);
+        gsl_matrix_set(Right,4,12,-0.5*pi*cbet);
+        gsl_matrix_set(Left,5,5,1);
+        gsl_matrix_set(Left,5,13,0.625*pi*cimp);
+        gsl_matrix_set(Right,5,5,1);
+        gsl_matrix_set(Right,5,13,-0.625*pi*cbet);
+        gsl_matrix_set(Left,6,6,1);
+        gsl_matrix_set(Left,6,14,0.25*pi*cimp);
+        gsl_matrix_set(Right,6,6,1);
+        gsl_matrix_set(Right,6,14,-0.25*pi*cbet);
+        gsl_matrix_set(Left,7,7,1);
+        gsl_matrix_set(Left,7,15,0.875*pi*cimp);
+        gsl_matrix_set(Right,7,7,1);
+        gsl_matrix_set(Right,7,15,-0.875*pi*cbet);
+        gsl_matrix_set(Left,8,8,1);
+        gsl_matrix_set(Right,8,8,1);
+        gsl_matrix_set(Left,9,1,-0.125*pi*cimp);
+        gsl_matrix_set(Left,9,9,1);
+        gsl_matrix_set(Right,9,1,0.125*pi*cbet);
+        gsl_matrix_set(Right,9,9,1);
+        gsl_matrix_set(Left,10,2,-0.25*pi*cimp);
+        gsl_matrix_set(Left,10,10,1);
+        gsl_matrix_set(Right,10,2,0.25*pi*cbet);
+        gsl_matrix_set(Right,10,10,1);
+        gsl_matrix_set(Left,11,3,-0.375*pi*cimp);
+        gsl_matrix_set(Left,11,11,1);
+        gsl_matrix_set(Right,11,3,0.375*pi*cbet);
+        gsl_matrix_set(Right,11,11,1);
+        gsl_matrix_set(Left,12,4,-0.5*pi*cimp);
+        gsl_matrix_set(Left,12,12,1);
+        gsl_matrix_set(Right,12,4,0.5*pi*cbet);
+        gsl_matrix_set(Right,12,12,1);
+        gsl_matrix_set(Left,13,5,-0.625*pi*cimp);
+        gsl_matrix_set(Left,13,13,1);
+        gsl_matrix_set(Right,13,5,0.625*pi*cbet);
+        gsl_matrix_set(Right,13,13,1);
+        gsl_matrix_set(Left,14,6,-0.25*pi*cimp);
+        gsl_matrix_set(Left,14,14,1);
+        gsl_matrix_set(Right,14,6,0.25*pi*cbet);
+        gsl_matrix_set(Right,14,14,1);
+        gsl_matrix_set(Left,15,7,-0.875*pi*cimp);
+        gsl_matrix_set(Left,15,15,1);
+        gsl_matrix_set(Right,15,7,0.875*pi*cbet);
+        gsl_matrix_set(Right,15,15,1);
 
-        coef[ic++] = -1.0/12.0*(3*p3*cimp - 2*p3)/(den0*p3);
-        coef[ic++] = 0.5*((2*pi - pi*cimp)/p3 - (2*pi + pi*cimp)/p3)/den0;
-        coef[ic++] = -0.5*((p2*cimp - 4)/p3 - 4/p3)/den0;
-        coef[ic++] = -0.25*((p2*cimp - 1)/p3 + 1/p3)/den0;
-        coef[ic++] = -1.0/12.0*((3*p3*cimp - 4*p3)/p3 - (3*p3*cimp + 4*p3)/p3)/den0;
-        coef[ic++] = 0.5*((4*pi - (pi - p3)*cimp)/p3 + (4*pi + (pi - p3)*cimp)/p3)/den0;
-        coef[ic++] = 0.5*((p2*cimp - 2*p2 + 4)/p3 + (p2*cimp + 2*p2 - 4)/p3)/den0;
-        coef[ic++] = 0.25*((p2*cimp - 2*p2 + 1)/p3 + (p2*cimp + 2*p2 - 1)/p3)/den0;
-        coef[ic++] = 1.0/12.0*(3*p3*cimp + 2*p3)/(den0*p3);
-        coef[ic++] = -0.5*((2*pi - pi*cimp)/p3 - (2*pi + pi*cimp)/p3)/den0;
-        coef[ic++] = -0.5*((p2*cimp + 4)/p3 + 4/p3)/den0;
-        coef[ic++] = -0.25*((p2*cimp + 1)/p3 - 1/p3)/den0;
-
-        coef[ic++] = 1.0/12.0*(3*p3*cbet + 2*p3)/(den0*p3);
-        coef[ic++] = -0.5*((2*pi - pi*cbet)/p3 - (2*pi + pi*cbet)/p3)/den0;
-        coef[ic++] = 0.5*((p2*cbet + 4)/p3 + 4/p3)/den0;
-        coef[ic++] = 0.25*((p2*cbet + 1)/p3 - 1/p3)/den0;
-        coef[ic++] = -1.0/12.0*((3*p3*cbet - 4*p3)/p3 - (3*p3*cbet + 4*p3)/p3)/den0;
-        coef[ic++] = 0.5*((4*pi - (pi - p3)*cbet)/p3 + (4*pi + (pi - p3)*cbet)/p3)/den0;
-        coef[ic++] = -0.5*((p2*cbet - 2*p2 + 4)/p3 + (p2*cbet + 2*p2 - 4)/p3)/den0;
-        coef[ic++] = -0.25*((p2*cbet - 2*p2 + 1)/p3 + (p2*cbet + 2*p2 - 1)/p3)/den0;
-        coef[ic++] = -1.0/12.0*(3*p3*cbet - 2*p3)/(den0*p3);
-        coef[ic++] = 0.5*((2*pi - pi*cbet)/p3 - (2*pi + pi*cbet)/p3)/den0;
-        coef[ic++] = 0.5*((p2*cbet - 4)/p3 - 4/p3)/den0;
-        coef[ic++] = 0.25*((p2*cbet - 1)/p3 + 1/p3)/den0;
-
-
-        coef[ic++] = 6*((2*pi - pi*cimp)/p3 - (2*pi + pi*cimp)/p3)/denf1;
-        coef[ic++] = 0.5*((3*pi + 3*p3*cimp - 2*p3)/p3 + 3/p2)/denf1;
-        coef[ic++] = -0.25*(((2*p4 - 9*p2)*cimp + 6)/p3 + 3*(3*p2*cimp - 2)/p3)/denf1;
-        coef[ic++] = -4.0/9.0*(2*(3*p2*cimp + 14)/p3 - (15*p2*cimp - 28)/p3)/denf1;
-        coef[ic++] = 6*((4*pi - pi*cimp)/p3 + (4*pi + pi*cimp)/p3)/denf1;
-        coef[ic++] = (3*(pi - p3*cimp)/p3 + 3*(pi + p3*cimp)/p3 + 4)/denf1;
-        coef[ic++] = 0.5*(((2*p4 + 3*p2)*cimp - 6*p2 + 3)/p3 + ((2*p4 + 3*p2)*cimp + 6*p2 - 3)/p3 - 3*(p2*cimp - 4*p2 + 1)/p3 - 3*(p2*cimp + 4*p2 - 1)/p3)/denf1;
-        coef[ic++] = 4.0/9.0*((21*p2*cimp - 18*p2 + 28)/p3 + (21*p2*cimp + 18*p2 - 28)/p3)/denf1;
-        coef[ic++] = -6*((2*pi - pi*cimp)/p3 - (2*pi + pi*cimp)/p3)/denf1;
-        coef[ic++] = 0.5*((3*pi - 3*p3*cimp - 2*p3)/p3 + 3/p2)/denf1;
-        coef[ic++] = -0.25*(((2*p4 - 9*p2)*cimp - 6)/p3 + 3*(3*p2*cimp + 2)/p3)/denf1;
-        coef[ic++] = -4.0/9.0*(2*(3*p2*cimp - 14)/p3 - (15*p2*cimp + 28)/p3)/denf1;
-
-        coef[ic++] = -6*((2*pi - pi*cbet)/p3 - (2*pi + pi*cbet)/p3)/denf1;
-        coef[ic++] = 0.5*((3*pi - 3*p3*cbet - 2*p3)/p3 + 3/p2)/denf1;
-        coef[ic++] = 0.25*(((2*p4 - 9*p2)*cbet - 6)/p3 + 3*(3*p2*cbet + 2)/p3)/denf1;
-        coef[ic++] = 4.0/9.0*(2*(3*p2*cbet - 14)/p3 - (15*p2*cbet + 28)/p3)/denf1;
-        coef[ic++] = 6*((4*pi - pi*cbet)/p3 + (4*pi + pi*cbet)/p3)/denf1;
-        coef[ic++] = (3*(pi - p3*cbet)/p3 + 3*(pi + p3*cbet)/p3 + 4)/denf1;
-        coef[ic++] = -0.5*(((2*p4 + 3*p2)*cbet - 6*p2 + 3)/p3 + ((2*p4 + 3*p2)*cbet + 6*p2 - 3)/p3 - 3*(p2*cbet - 4*p2 + 1)/p3 - 3*(p2*cbet + 4*p2 - 1)/p3)/denf1;
-        coef[ic++] = -4.0/9.0*((21*p2*cbet - 18*p2 + 28)/p3 + (21*p2*cbet + 18*p2 - 28)/p3)/denf1;
-        coef[ic++] = 6*((2*pi - pi*cbet)/p3 - (2*pi + pi*cbet)/p3)/denf1;
-        coef[ic++] = 0.5*((3*pi + 3*p3*cbet - 2*p3)/p3 + 3/p2)/denf1;
-        coef[ic++] = 0.25*(((2*p4 - 9*p2)*cbet + 6)/p3 + 3*(3*p2*cbet - 2)/p3)/denf1;
-        coef[ic++] = 4.0/9.0*(2*(3*p2*cbet + 14)/p3 - (15*p2*cbet - 28)/p3)/denf1;
-
-
-        coef[ic++] = -18*((p2*cimp - 4)/p3 - 4/p3)/denf2;
-        coef[ic++] = -0.75*(((2*p4 + 9*p2)*cimp - 6)/p3 - 3*(3*p2*cimp - 2)/p3)/denf2;
-        coef[ic++] = 1.5*((3*pi - 3*p3*cimp + 2*p3)/p3 + 3/p2)/denf2;
-        coef[ic++] = 16.0/3.0*((3*pi - 5*pi*cimp)/p3 - (3*pi + 5*pi*cimp)/p3)/denf2;
-        coef[ic++] = 18*((p2*cimp - 2*p2 + 4)/p3 + (p2*cimp + 2*p2 - 4)/p3)/denf2;
-        coef[ic++] = 1.5*(((2*p4 - 3*p2)*cimp - 6*p2 + 3)/p3 + ((2*p4 - 3*p2)*cimp + 6*p2 - 3)/p3 + 3*(p2*cimp - 4*p2 + 1)/p3 + 3*(p2*cimp + 4*p2 - 1)/p3)/denf2;
-        coef[ic++] = 3*((3*p3*cimp - 2*p3)/p3 - (3*p3*cimp + 2*p3)/p3 + 3*(pi - p3*cimp)/p3 + 3*(pi + p3*cimp)/p3)/denf2;
-        coef[ic++] = -4.0/3.0*((24*pi - (20*pi - 9*p3)*cimp)/p3 + (24*pi + (20*pi - 9*p3)*cimp)/p3)/denf2;
-        coef[ic++] = -18*((p2*cimp + 4)/p3 + 4/p3)/denf2;
-        coef[ic++] = -0.75*(((2*p4 + 9*p2)*cimp + 6)/p3 - 3*(3*p2*cimp + 2)/p3)/denf2;
-        coef[ic++] = 1.5*((3*pi + 3*p3*cimp + 2*p3)/p3 + 3/p2)/denf2;
-        coef[ic++] = -16.0/3.0*((3*pi - 5*pi*cimp)/p3 - (3*pi + 5*pi*cimp)/p3)/denf2;
-
-        coef[ic++] = 18*((p2*cbet + 4)/p3 + 4/p3)/denf2;
-        coef[ic++] = 0.75*(((2*p4 + 9*p2)*cbet + 6)/p3 - 3*(3*p2*cbet + 2)/p3)/denf2;
-        coef[ic++] = 1.5*((3*pi + 3*p3*cbet + 2*p3)/p3 + 3/p2)/denf2;
-        coef[ic++] = -16.0/3.0*((3*pi - 5*pi*cbet)/p3 - (3*pi + 5*pi*cbet)/p3)/denf2;
-        coef[ic++] = -18*((p2*cbet - 2*p2 + 4)/p3 + (p2*cbet + 2*p2 - 4)/p3)/denf2;
-        coef[ic++] = -1.5*(((2*p4 - 3*p2)*cbet - 6*p2 + 3)/p3 + ((2*p4 - 3*p2)*cbet + 6*p2 - 3)/p3 + 3*(p2*cbet - 4*p2 + 1)/p3 + 3*(p2*cbet + 4*p2 - 1)/p3)/denf2;
-        coef[ic++] = 3*((3*p3*cbet - 2*p3)/p3 - (3*p3*cbet + 2*p3)/p3 + 3*(pi - p3*cbet)/p3 + 3*(pi + p3*cbet)/p3)/denf2;
-        coef[ic++] = -4.0/3.0*((24*pi - (20*pi - 9*p3)*cbet)/p3 + (24*pi + (20*pi - 9*p3)*cbet)/p3)/denf2;
-        coef[ic++] = 18*((p2*cbet - 4)/p3 - 4/p3)/denf2;
-        coef[ic++] = 0.75*(((2*p4 + 9*p2)*cbet - 6)/p3 - 3*(3*p2*cbet - 2)/p3)/denf2;
-        coef[ic++] = 1.5*((3*pi - 3*p3*cbet + 2*p3)/p3 + 3/p2)/denf2;
-        coef[ic++] = 16.0/3.0*((3*pi - 5*pi*cbet)/p3 - (3*pi + 5*pi*cbet)/p3)/denf2;
-
-
-        coef[ic++] = 36*((p2*cimp - 1)/p3 + 1/p3)/denf3;
-        coef[ic++] = 16.0/3.0*(2*(3*p2*cimp + 14)/p3 - (15*p2*cimp - 28)/p3)/denf3;
-        coef[ic++] = -64.0/3.0*((3*pi - 5*pi*cimp)/p3 - (3*pi + 5*pi*cimp)/p3)/denf3;
-        coef[ic++] = 1.5*((3*pi - 12*p3*cimp + 8*p3)/p3 + 3/p2)/denf3;
-        coef[ic++] = -36*((p2*cimp - 2*p2 + 1)/p3 + (p2*cimp + 2*p2 - 1)/p3)/denf3;
-        coef[ic++] = -16.0/3.0*((21*p2*cimp - 18*p2 + 28)/p3 + (21*p2*cimp + 18*p2 - 28)/p3)/denf3;
-        coef[ic++] = 16.0/3.0*((24*pi - (20*pi - 9*p3)*cimp)/p3 + (24*pi + (20*pi - 9*p3)*cimp)/p3)/denf3;
-        coef[ic++] = -3*(4*(3*p3*cimp - 2*p3)/p3 - 4*(3*p3*cimp + 2*p3)/p3 + 3*(pi - 4*p3*cimp)/p3 + 3*(pi + 4*p3*cimp)/p3)/denf3;
-        coef[ic++] = 36*((p2*cimp + 1)/p3 - 1/p3)/denf3;
-        coef[ic++] = 16.0/3.0*(2*(3*p2*cimp - 14)/p3 - (15*p2*cimp + 28)/p3)/denf3;
-        coef[ic++] = 64.0/3.0*((3*pi - 5*pi*cimp)/p3 - (3*pi + 5*pi*cimp)/p3)/denf3;
-        coef[ic++] = 1.5*((3*pi + 12*p3*cimp + 8*p3)/p3 + 3/p2)/denf3;
-
-        coef[ic++] = -36*((p2*cbet + 1)/p3 - 1/p3)/denf3;
-        coef[ic++] = -16.0/3.0*(2*(3*p2*cbet - 14)/p3 - (15*p2*cbet + 28)/p3)/denf3;
-        coef[ic++] = 64.0/3.0*((3*pi - 5*pi*cbet)/p3 - (3*pi + 5*pi*cbet)/p3)/denf3;
-        coef[ic++] = 1.5*((3*pi + 12*p3*cbet + 8*p3)/p3 + 3/p2)/denf3;
-        coef[ic++] = 36*((p2*cbet - 2*p2 + 1)/p3 + (p2*cbet + 2*p2 - 1)/p3)/denf3;
-        coef[ic++] = 16.0/3.0*((21*p2*cbet - 18*p2 + 28)/p3 + (21*p2*cbet + 18*p2 - 28)/p3)/denf3;
-        coef[ic++] = 16.0/3.0*((24*pi - (20*pi - 9*p3)*cbet)/p3 + (24*pi + (20*pi - 9*p3)*cbet)/p3)/denf3;
-        coef[ic++] = -3*(4*(3*p3*cbet - 2*p3)/p3 - 4*(3*p3*cbet + 2*p3)/p3 + 3*(pi - 4*p3*cbet)/p3 + 3*(pi + 4*p3*cbet)/p3)/denf3;
-        coef[ic++] = -36*((p2*cbet - 1)/p3 + 1/p3)/denf3;
-        coef[ic++] = -16.0/3.0*(2*(3*p2*cbet + 14)/p3 - (15*p2*cbet - 28)/p3)/denf3;
-        coef[ic++] = -64.0/3.0*((3*pi - 5*pi*cbet)/p3 - (3*pi + 5*pi*cbet)/p3)/denf3;
-        coef[ic++] = 1.5*((3*pi - 12*p3*cbet + 8*p3)/p3 + 3/p2)/denf3;
     }
+
+
+    gsl_matrix_set_all(FarRight,0.0);
+
+    gsl_linalg_LU_decomp(Left,lpermut,&signum);
 }
 
-void ImpWidget::fema() {
-    switch(ibase) {
-    default:
-    case 0: // linear
-    case 1: // raised cosine
-        ibase = 2;
-    case 2: // Peicewise parabolic
-//
-//[-1/2*C*a + 1/10, 4/5, 1/2*C*a + 1/10, 0, 0]
-        coef[0]= -0.5*CFL*impl +0.1;
-        coef[1]= 0.8;
-        coef[2]= 0.5*CFL*impl + 0.1;
-        coef[3]= 0;
-        coef[4]= 0;
-//
-//[-1/2*C*b - 1/10, -4/5, 1/2*C*b - 1/10, 0, 0]
-// NEGATE
-        coef[5]= 0.5*CFL*beta + 0.1;
-        coef[6]= 0.8;
-        coef[7]= -0.5*CFL*beta + 0.1;
-        coef[8]= 0;
-        coef[9]= 0;
-//
-//[-1/2*C*c, 0, 1/2*C*c, 0, 0]
-//	  0]  NEGATE
-        coef[10]= 0.5*CFL*back;
-        coef[11]= 0.0;
-        coef[12]= -0.5*CFL*back;
-        coef[13]= 0;
-        coef[14]= 0;
-//
-//
-// [1/4*C*a - 1/10, -C*a + 1/5, 4/5, C*a + 1/5, -1/4*C*a - 1/10]
-        coef[15]= 0.25*CFL*impl - 0.1 ;
-        coef[16]= -CFL*impl + 0.2;
-        coef[17]= 0.8;
-        coef[18]= CFL*impl + 0.2;
-        coef[19]= -0.25*CFL*impl -0.1;
-//
-//[1/4*C*b + 1/10, -C*b - 1/5, -4/5, C*b - 1/5, -1/4*C*b + 1/10]
-//	      NEGATE
-        coef[20]= -0.25*CFL*beta - 0.1 ;
-        coef[21]= CFL*beta + 0.2;
-        coef[22]= 0.8;
-        coef[23]= -CFL*beta + 0.2;
-        coef[24]= 0.25*CFL*beta - 0.1;
-//
-//[1/4*C*c, -C*c, 0, C*c, -1/4*C*c]
-//  NEGATE
-        coef[25]= -0.25*CFL*back;
-        coef[26]= CFL*back;
-        coef[27]= 0.0;
-        coef[28]= -CFL*back;
-        coef[29]= 0.25*CFL*back;
-//
-//
-        break;
-    }
+void EnvWidget::fema() {
 }
 
-void ImpWidget::initSin(const double value) {
+void EnvWidget::rk() {
+    //double p2,den0,den1,den2,den3;
+
+    //p2 = pi * pi;
+    //den0 = 1.0/(pi+2.0);
+    //den1 = 1.0/(3*pi+16);
+    //den2 = 1.0/(3*pi + 4);
+    //den3 = 1.0/(3*pi + 8);
+    switch(nbas) {
+    default:
+        allocate_gsl(4);
+    case 4:
+        gsl_matrix_set(Left,0,0,1);
+        gsl_matrix_set(Left,0,1,0);
+        gsl_matrix_set(Left,0,2,0);
+        gsl_matrix_set(Left,0,3,0);
+
+        gsl_matrix_set(Right,0,0,0);
+        gsl_matrix_set(Right,0,1,0);
+        gsl_matrix_set(Right,0,2,0);
+        gsl_matrix_set(Right,0,3,0);
+
+
+        gsl_matrix_set(Left,1,0,0);
+        gsl_matrix_set(Left,1,1,1);
+        gsl_matrix_set(Left,1,2,0);
+        gsl_matrix_set(Left,1,3,0);
+
+        gsl_matrix_set(Right,1,0,0);
+        gsl_matrix_set(Right,1,1,0);
+        gsl_matrix_set(Right,1,2,0);
+        gsl_matrix_set(Right,1,3,-0.5*pi*CFL);
+
+
+        gsl_matrix_set(Left,2,0,0);
+        gsl_matrix_set(Left,2,1,0);
+        gsl_matrix_set(Left,2,2,1);
+        gsl_matrix_set(Left,2,3,0);
+
+        gsl_matrix_set(Right,2,0,0);
+        gsl_matrix_set(Right,2,1,0);
+        gsl_matrix_set(Right,2,2,0);
+        gsl_matrix_set(Right,2,3,0);
+
+
+        gsl_matrix_set(Left,3,0,0);
+        gsl_matrix_set(Left,3,1,0);
+        gsl_matrix_set(Left,3,2,0);
+        gsl_matrix_set(Left,3,3,1);
+
+        gsl_matrix_set(Right,3,0,0);
+        gsl_matrix_set(Right,3,1,0.5*pi*CFL);
+        gsl_matrix_set(Right,3,2,0);
+        gsl_matrix_set(Right,3,3,0);
+        break;
+    case 8:
+        gsl_matrix_set_all(Left,0.0);
+        gsl_matrix_set_all(Right,0.0);
+        gsl_matrix_set(Left,0,0,1);
+        gsl_matrix_set(Left,1,1,1);
+        gsl_matrix_set(Right,1,5,-0.25*pi*CFL);
+        gsl_matrix_set(Left,2,2,1);
+        gsl_matrix_set(Right,2,6,-0.5*pi*CFL);
+        gsl_matrix_set(Left,3,3,1);
+        gsl_matrix_set(Right,3,7,-0.75*pi*CFL);
+        gsl_matrix_set(Left,4,4,1);
+        gsl_matrix_set(Left,5,5,1);
+        gsl_matrix_set(Right,5,1,0.25*pi*CFL);
+        gsl_matrix_set(Left,6,6,1);
+        gsl_matrix_set(Right,6,2,0.5*pi*CFL);
+        gsl_matrix_set(Left,7,7,1);
+        gsl_matrix_set(Right,7,3,0.75*pi*CFL);
+        break;
+
+    case 15:
+        gsl_matrix_set_all(Left,0.0);
+        gsl_matrix_set_all(Right,0.0);
+
+        gsl_matrix_set(Left,0,0,1);
+        gsl_matrix_set(Left,1,1,1);
+        gsl_matrix_set(Right,1,8,-2.0/15*pi*CFL);
+        gsl_matrix_set(Left,2,2,1);
+        gsl_matrix_set(Right,2,9,-4.0/15*pi*CFL);
+        gsl_matrix_set(Left,3,3,1);
+        gsl_matrix_set(Right,3,10,-2.0/5*pi*CFL);
+        gsl_matrix_set(Left,4,4,1);
+        gsl_matrix_set(Right,4,11,-8.0/15*pi*CFL);
+        gsl_matrix_set(Left,5,5,1);
+        gsl_matrix_set(Right,5,12,-2.0/3*pi*CFL);
+        gsl_matrix_set(Left,6,6,1);
+        gsl_matrix_set(Right,6,13,-4.0/5*pi*CFL);
+        gsl_matrix_set(Left,7,7,1);
+        gsl_matrix_set(Right,7,14,-14.0/15*pi*CFL);
+        gsl_matrix_set(Left,8,8,1);
+        gsl_matrix_set(Right,8,1,2.0/15*pi*CFL);
+        gsl_matrix_set(Left,9,9,1);
+        gsl_matrix_set(Right,9,2,4.0/15*pi*CFL);
+        gsl_matrix_set(Left,10,10,1);
+        gsl_matrix_set(Right,10,3,2.0/5*pi*CFL);
+        gsl_matrix_set(Left,11,11,1);
+        gsl_matrix_set(Right,11,4,8.0/15*pi*CFL);
+        gsl_matrix_set(Left,12,12,1);
+        gsl_matrix_set(Right,12,5,2.0/3*pi*CFL);
+        gsl_matrix_set(Left,13,13,1);
+        gsl_matrix_set(Right,13,6,4.0/5*pi*CFL);
+        gsl_matrix_set(Left,14,14,1);
+        gsl_matrix_set(Right,14,7,14.0/15*pi*CFL);
+	break;
+    case 16:
+        gsl_matrix_set_all(Left,0.0);
+        gsl_matrix_set_all(Right,0.0);
+        gsl_matrix_set(Left,0,0,1);
+        gsl_matrix_set(Left,1,1,1);
+        gsl_matrix_set(Right,1,9,-0.125*pi*CFL);
+        gsl_matrix_set(Left,2,2,1);
+        gsl_matrix_set(Right,2,10,-0.25*pi*CFL);
+        gsl_matrix_set(Left,3,3,1);
+        gsl_matrix_set(Right,3,11,-0.375*pi*CFL);
+        gsl_matrix_set(Left,4,4,1);
+        gsl_matrix_set(Right,4,12,-0.5*pi*CFL);
+        gsl_matrix_set(Left,5,5,1);
+        gsl_matrix_set(Right,5,13,-0.625*pi*CFL);
+        gsl_matrix_set(Left,6,6,1);
+        gsl_matrix_set(Right,6,14,-0.25*pi*CFL);
+        gsl_matrix_set(Left,7,7,1);
+        gsl_matrix_set(Right,7,15,-0.875*pi*CFL);
+        gsl_matrix_set(Left,8,8,1);
+        gsl_matrix_set(Left,9,9,1);
+        gsl_matrix_set(Right,9,1,0.125*pi*CFL);
+        gsl_matrix_set(Left,10,10,1);
+        gsl_matrix_set(Right,10,2,0.25*pi*CFL);
+        gsl_matrix_set(Left,11,11,1);
+        gsl_matrix_set(Right,11,3,0.375*pi*CFL);
+        gsl_matrix_set(Left,12,12,1);
+        gsl_matrix_set(Right,12,4,0.5*pi*CFL);
+        gsl_matrix_set(Left,13,13,1);
+        gsl_matrix_set(Right,13,5,0.625*pi*CFL);
+        gsl_matrix_set(Left,14,14,1);
+        gsl_matrix_set(Right,14,6,0.25*pi*CFL);
+        gsl_matrix_set(Left,15,15,1);
+        gsl_matrix_set(Right,15,7,0.875*pi*CFL);
+    }
+
+
+    gsl_matrix_set_all(FarRight,0.0);
+
+    gsl_linalg_LU_decomp(Left,lpermut,&signum);
+}
+
+void EnvWidget::initSin(const double value) {
     cStep = 0;
     if ( N_ == 0 ) setSize ( 100 );
     totCFL = N_ / 2.0;
@@ -1248,108 +1000,656 @@ void ImpWidget::initSin(const double value) {
     for ( size_t i = 0; i < N_; i++ ) {
         U_[i] = Ideal_[i];
     }
-    if(transform) forwardTrans(U_,Utran);
 }
 
-double* ImpWidget::getU() {
-    if(transform) {
-        reversTrans(Utran,U_);
-    }
+double* EnvWidget::getU() {
     return U_;
 }
 
-
-void ImpWidget::reversTrans(double *from,double *to) {
-    int nn,nb;
-    for(nn=0; nn<N_ ; nn += nblock) {
-        for( nb=0; nb < nblock; nb++) {
-            gsl_vector_set(TranVec,nb,from[nn+nb]);
-        }
-        gsl_blas_dgemv(CblasNoTrans,1.0,Mback,TranVec,0.0,UVec);
-        for( nb=0; nb < nblock; nb++) {
-            to[nn+nb] = gsl_vector_get(UVec,nb);
-        }
+void EnvWidget::allocate_gsl(int size) {
+    if(size == nbas) return;
+    if(nbas) {
+        // deallocate matricies
+        gsl_vector_free(UVec);
+        gsl_vector_free(BVec);
+        gsl_vector_free(CVec);
+        gsl_vector_free(TranVec);
+        gsl_matrix_free(Mforw);
+        gsl_permutation_free(permut);
+        gsl_matrix_free(Mback);
+        gsl_matrix_free(Left);
+        gsl_permutation_free(lpermut);
+        gsl_matrix_free(Right);
+        gsl_matrix_free(FarRight);
+        if(N_) delete[] Ub;
     }
+    nbas = size;
+    UVec = gsl_vector_alloc(nbas);
+    BVec = gsl_vector_alloc(nbas);
+    CVec = gsl_vector_alloc(nbas);
+    TranVec = gsl_vector_alloc(nbas);
+    Mforw = gsl_matrix_alloc(nbas,nbas);
+    permut = gsl_permutation_alloc (nbas);
+    Mback =  gsl_matrix_alloc(nbas,nbas);
+    Left = gsl_matrix_alloc(nbas,nbas);
+    lpermut = gsl_permutation_alloc(nbas);
+    Right = gsl_matrix_alloc(nbas,nbas);
+    FarRight = gsl_matrix_alloc(nbas,nbas);
+    if(N_) Ub= new double[N_*nbas];
 }
 
-void ImpWidget::forwardTrans(double *from,double *to) {
-    int nn,nb;
-    for(nn=0; nn<N_ ; nn += nblock) {
-        for( nb=0; nb < nblock; nb++) {
-            gsl_vector_set(UVec,nb,from[nn+nb]);
-        }
-        gsl_linalg_LU_solve(Mforw,permut,UVec,TranVec);
-        for( nb=0; nb < nblock; nb++) {
-            to[nn+nb] = gsl_vector_get(TranVec,nb);
-        }
+void EnvWidget::setupTrans(int size) {
+    int signum;
+    //double rsq;
+    //rsq = 1.0/sqrt(2.0);
+    switch(size) {
+    default:
+        size=4;
+    case 4:
+        allocate_gsl(4);
+        gsl_matrix_set(Mback,0,0,1);
+        gsl_matrix_set(Mback,0,1,-1);
+        gsl_matrix_set(Mback,0,2,1);
+        gsl_matrix_set(Mback,0,3,0);
+
+        gsl_matrix_set(Mback,1,0,1);
+        gsl_matrix_set(Mback,1,1,0);
+        gsl_matrix_set(Mback,1,2,-1);
+        gsl_matrix_set(Mback,1,3,-1);
+
+        gsl_matrix_set(Mback,2,0,1);
+        gsl_matrix_set(Mback,2,1,1);
+        gsl_matrix_set(Mback,2,2,1);
+        gsl_matrix_set(Mback,2,3,0);
+
+        gsl_matrix_set(Mback,3,0,1);
+        gsl_matrix_set(Mback,3,1,0);
+        gsl_matrix_set(Mback,3,2,-1);
+        gsl_matrix_set(Mback,3,3,1);
+        break;
+    case 8:
+        allocate_gsl(8);
+
+        gsl_matrix_set(Mback,3,0,1.0);
+        gsl_matrix_set(Mback,3,1,0.7071067811865475);
+        gsl_matrix_set(Mback,3,2,0.0);
+        gsl_matrix_set(Mback,3,3,-0.7071067811865475);
+        gsl_matrix_set(Mback,3,4,-1.0);
+        gsl_matrix_set(Mback,3,5,-0.7071067811865475);
+        gsl_matrix_set(Mback,3,6,-1.0);
+        gsl_matrix_set(Mback,3,7,-0.7071067811865475);
+
+        gsl_matrix_set(Mback,4,0,1.0);
+        gsl_matrix_set(Mback,4,1,1.0);
+        gsl_matrix_set(Mback,4,2,1.0);
+        gsl_matrix_set(Mback,4,3,1.0);
+        gsl_matrix_set(Mback,4,4,1.0);
+        gsl_matrix_set(Mback,4,5,0.0);
+        gsl_matrix_set(Mback,4,6,0.0);
+        gsl_matrix_set(Mback,4,7,0.0);
+
+        gsl_matrix_set(Mback,5,0,1.0);
+        gsl_matrix_set(Mback,5,1,0.7071067811865475);
+        gsl_matrix_set(Mback,5,2,0.0);
+        gsl_matrix_set(Mback,5,3,-0.7071067811865475);
+        gsl_matrix_set(Mback,5,4,-1.0);
+        gsl_matrix_set(Mback,5,5,0.7071067811865475);
+        gsl_matrix_set(Mback,5,6,1.0);
+        gsl_matrix_set(Mback,5,7,0.7071067811865475);
+
+        gsl_matrix_set(Mback,6,0,1.0);
+        gsl_matrix_set(Mback,6,1,0.0);
+        gsl_matrix_set(Mback,6,2,-1.0);
+        gsl_matrix_set(Mback,6,3,0.0);
+        gsl_matrix_set(Mback,6,4,1.0);
+        gsl_matrix_set(Mback,6,5,1.0);
+        gsl_matrix_set(Mback,6,6,0.0);
+        gsl_matrix_set(Mback,6,7,-1.0);
+
+        gsl_matrix_set(Mback,7,0,1.0);
+        gsl_matrix_set(Mback,7,1,-0.7071067811865475);
+        gsl_matrix_set(Mback,7,2,0.0);
+        gsl_matrix_set(Mback,7,3,0.7071067811865475);
+        gsl_matrix_set(Mback,7,4,-1.0);
+        gsl_matrix_set(Mback,7,5,0.7071067811865475);
+        gsl_matrix_set(Mback,7,6,-1.0);
+        gsl_matrix_set(Mback,7,7,0.7071067811865475);
+        break;
+    case 15:
+        allocate_gsl(15);
+        // location -7.5 = + 7.5
+        gsl_matrix_set(Mback,0,0,1.0);
+        gsl_matrix_set(Mback,0,1,-1.0);
+        gsl_matrix_set(Mback,0,2,1.0);
+        gsl_matrix_set(Mback,0,3,-1.0);
+        gsl_matrix_set(Mback,0,4,1.0);
+        gsl_matrix_set(Mback,0,5,-1.0);
+        gsl_matrix_set(Mback,0,6,1.0);
+        gsl_matrix_set(Mback,0,7,-1.0);
+        gsl_matrix_set(Mback,0,8,0.0);
+        gsl_matrix_set(Mback,0,9,2.288475490443933e-17);
+        gsl_matrix_set(Mback,0,10,-3.432713235665899e-17);
+        gsl_matrix_set(Mback,0,11,4.576950980887865e-17);
+        gsl_matrix_set(Mback,0,12,-5.721188726109832e-17);
+        gsl_matrix_set(Mback,0,13,6.865426471331798e-17);
+        gsl_matrix_set(Mback,0,14,3.092566029697801e-17);
+
+// location -6.5
+        gsl_matrix_set(Mback,1,0,1.0);
+        gsl_matrix_set(Mback,1,1,-0.9135454576426009);
+        gsl_matrix_set(Mback,1,2,0.6691306063588583);
+        gsl_matrix_set(Mback,1,3,-0.3090169943749476);
+        gsl_matrix_set(Mback,1,4,-0.1045284632676532);
+        gsl_matrix_set(Mback,1,5,0.5000000000000008);
+        gsl_matrix_set(Mback,1,6,-0.8090169943749471);
+        gsl_matrix_set(Mback,1,7,0.9781476007338058);
+        gsl_matrix_set(Mback,1,8,-0.4067366430758001);
+        gsl_matrix_set(Mback,1,9,0.7431448254773941);
+        gsl_matrix_set(Mback,1,10,-0.9510565162951535);
+        gsl_matrix_set(Mback,1,11,0.9945218953682734);
+        gsl_matrix_set(Mback,1,12,-0.8660254037844382);
+        gsl_matrix_set(Mback,1,13,0.5877852522924735);
+        gsl_matrix_set(Mback,1,14,-0.2079116908177585);
+
+// location -5.5
+        gsl_matrix_set(Mback,2,0,1.0);
+        gsl_matrix_set(Mback,2,1,-0.6691306063588581);
+        gsl_matrix_set(Mback,2,2,-0.1045284632676538);
+        gsl_matrix_set(Mback,2,3,0.8090169943749471);
+        gsl_matrix_set(Mback,2,4,-0.9781476007338055);
+        gsl_matrix_set(Mback,2,5,0.4999999999999996);
+        gsl_matrix_set(Mback,2,6,0.3090169943749465);
+        gsl_matrix_set(Mback,2,7,-0.9135454576426004);
+        gsl_matrix_set(Mback,2,8,-0.7431448254773943);
+        gsl_matrix_set(Mback,2,9,0.9945218953682733);
+        gsl_matrix_set(Mback,2,10,-0.5877852522924735);
+        gsl_matrix_set(Mback,2,11,-0.2079116908177600);
+        gsl_matrix_set(Mback,2,12,0.8660254037844389);
+        gsl_matrix_set(Mback,2,13,-0.9510565162951539);
+        gsl_matrix_set(Mback,2,14,0.4067366430758014);
+
+// location -4.5
+        gsl_matrix_set(Mback,3,0,1.0);
+        gsl_matrix_set(Mback,3,1,-0.3090169943749474);
+        gsl_matrix_set(Mback,3,2,-0.8090169943749475);
+        gsl_matrix_set(Mback,3,3,0.8090169943749475);
+        gsl_matrix_set(Mback,3,4,0.3090169943749477);
+        gsl_matrix_set(Mback,3,5,-1.0);
+        gsl_matrix_set(Mback,3,6,0.3090169943749476);
+        gsl_matrix_set(Mback,3,7,0.8090169943749471);
+        gsl_matrix_set(Mback,3,8,-0.9510565162951536);
+        gsl_matrix_set(Mback,3,9,0.5877852522924730);
+        gsl_matrix_set(Mback,3,10,0.5877852522924730);
+        gsl_matrix_set(Mback,3,11,-0.9510565162951535);
+        gsl_matrix_set(Mback,3,12,-3.432713235665899e-17);
+        gsl_matrix_set(Mback,3,13,0.9510565162951535);
+        gsl_matrix_set(Mback,3,14,-0.5877852522924735);
+
+// location -3.5
+        gsl_matrix_set(Mback,4,0,1.0);
+        gsl_matrix_set(Mback,4,1,0.1045284632676535);
+        gsl_matrix_set(Mback,4,2,-0.9781476007338056);
+        gsl_matrix_set(Mback,4,3,-0.3090169943749471);
+        gsl_matrix_set(Mback,4,4,0.9135454576426009);
+        gsl_matrix_set(Mback,4,5,0.5000000000000008);
+        gsl_matrix_set(Mback,4,6,-0.8090169943749479);
+        gsl_matrix_set(Mback,4,7,-0.6691306063588584);
+        gsl_matrix_set(Mback,4,8,-0.9945218953682733);
+        gsl_matrix_set(Mback,4,9,-0.2079116908177593);
+        gsl_matrix_set(Mback,4,10,0.9510565162951537);
+        gsl_matrix_set(Mback,4,11,0.4067366430758001);
+        gsl_matrix_set(Mback,4,12,-0.8660254037844382);
+        gsl_matrix_set(Mback,4,13,-0.5877852522924725);
+        gsl_matrix_set(Mback,4,14,0.7431448254773941);
+
+// location -2.5
+        gsl_matrix_set(Mback,5,0,1.0);
+        gsl_matrix_set(Mback,5,1,0.50);
+        gsl_matrix_set(Mback,5,2,-0.4999999999999999);
+        gsl_matrix_set(Mback,5,3,-1.0);
+        gsl_matrix_set(Mback,5,4,-0.5000000000000002);
+        gsl_matrix_set(Mback,5,5,0.4999999999999996);
+        gsl_matrix_set(Mback,5,6,1.0);
+        gsl_matrix_set(Mback,5,7,0.4999999999999996);
+        gsl_matrix_set(Mback,5,8,-0.8660254037844386);
+        gsl_matrix_set(Mback,5,9,-0.8660254037844387);
+        gsl_matrix_set(Mback,5,10,0.0);
+        gsl_matrix_set(Mback,5,11,0.8660254037844385);
+        gsl_matrix_set(Mback,5,12,0.8660254037844389);
+        gsl_matrix_set(Mback,5,13,2.288475490443933e-17);
+        gsl_matrix_set(Mback,5,14,-0.8660254037844389);
+
+// location -1.5
+        gsl_matrix_set(Mback,6,0,1.0);
+        gsl_matrix_set(Mback,6,1,0.8090169943749474);
+        gsl_matrix_set(Mback,6,2,0.3090169943749474);
+        gsl_matrix_set(Mback,6,3,-0.3090169943749477);
+        gsl_matrix_set(Mback,6,4,-0.8090169943749475);
+        gsl_matrix_set(Mback,6,5,-1.0);
+        gsl_matrix_set(Mback,6,6,-0.8090169943749471);
+        gsl_matrix_set(Mback,6,7,-0.3090169943749477);
+        gsl_matrix_set(Mback,6,8,-0.5877852522924732);
+        gsl_matrix_set(Mback,6,9,-0.9510565162951536);
+        gsl_matrix_set(Mback,6,10,-0.9510565162951535);
+        gsl_matrix_set(Mback,6,11,-0.5877852522924730);
+        gsl_matrix_set(Mback,6,12,0.0);
+        gsl_matrix_set(Mback,6,13,0.5877852522924736);
+        gsl_matrix_set(Mback,6,14,0.9510565162951535);
+
+// location -0.5
+        gsl_matrix_set(Mback,7,0,1.0);
+        gsl_matrix_set(Mback,7,1,0.9781476007338056);
+        gsl_matrix_set(Mback,7,2,0.9135454576426009);
+        gsl_matrix_set(Mback,7,3,0.8090169943749474);
+        gsl_matrix_set(Mback,7,4,0.6691306063588582);
+        gsl_matrix_set(Mback,7,5,0.5);
+        gsl_matrix_set(Mback,7,6,0.3090169943749474);
+        gsl_matrix_set(Mback,7,7,0.1045284632676535);
+        gsl_matrix_set(Mback,7,8,-0.2079116908177593);
+        gsl_matrix_set(Mback,7,9,-0.4067366430758002);
+        gsl_matrix_set(Mback,7,10,-0.5877852522924732);
+        gsl_matrix_set(Mback,7,11,-0.7431448254773942);
+        gsl_matrix_set(Mback,7,12,-0.8660254037844386);
+        gsl_matrix_set(Mback,7,13,-0.9510565162951536);
+        gsl_matrix_set(Mback,7,14,-0.9945218953682733);
+
+// location 0.5
+        gsl_matrix_set(Mback,8,0,1.0);
+        gsl_matrix_set(Mback,8,1,0.9781476007338056);
+        gsl_matrix_set(Mback,8,2,0.9135454576426009);
+        gsl_matrix_set(Mback,8,3,0.8090169943749474);
+        gsl_matrix_set(Mback,8,4,0.6691306063588582);
+        gsl_matrix_set(Mback,8,5,0.5);
+        gsl_matrix_set(Mback,8,6,0.3090169943749474);
+        gsl_matrix_set(Mback,8,7,0.1045284632676535);
+        gsl_matrix_set(Mback,8,8,0.2079116908177593);
+        gsl_matrix_set(Mback,8,9,0.4067366430758002);
+        gsl_matrix_set(Mback,8,10,0.5877852522924732);
+        gsl_matrix_set(Mback,8,11,0.7431448254773942);
+        gsl_matrix_set(Mback,8,12,0.8660254037844386);
+        gsl_matrix_set(Mback,8,13,0.9510565162951536);
+        gsl_matrix_set(Mback,8,14,0.9945218953682733);
+
+// location 1.5
+        gsl_matrix_set(Mback,9,0,1.0);
+        gsl_matrix_set(Mback,9,1,0.8090169943749474);
+        gsl_matrix_set(Mback,9,2,0.3090169943749474);
+        gsl_matrix_set(Mback,9,3,-0.3090169943749477);
+        gsl_matrix_set(Mback,9,4,-0.8090169943749475);
+        gsl_matrix_set(Mback,9,5,-1.0);
+        gsl_matrix_set(Mback,9,6,-0.8090169943749471);
+        gsl_matrix_set(Mback,9,7,-0.3090169943749477);
+        gsl_matrix_set(Mback,9,8,0.5877852522924732);
+        gsl_matrix_set(Mback,9,9,0.9510565162951536);
+        gsl_matrix_set(Mback,9,10,0.9510565162951535);
+        gsl_matrix_set(Mback,9,11,0.5877852522924730);
+        gsl_matrix_set(Mback,9,12,0.0);
+        gsl_matrix_set(Mback,9,13,-0.5877852522924736);
+        gsl_matrix_set(Mback,9,14,-0.9510565162951535);
+
+// location 2.5
+        gsl_matrix_set(Mback,10,0,1.0);
+        gsl_matrix_set(Mback,10,1,0.5);
+        gsl_matrix_set(Mback,10,2,-0.4999999999999999);
+        gsl_matrix_set(Mback,10,3,-1.0);
+        gsl_matrix_set(Mback,10,4,-0.5000000000000002);
+        gsl_matrix_set(Mback,10,5,0.4999999999999996);
+        gsl_matrix_set(Mback,10,6,1.0);
+        gsl_matrix_set(Mback,10,7,0.4999999999999996);
+        gsl_matrix_set(Mback,10,8,0.8660254037844386);
+        gsl_matrix_set(Mback,10,9,0.8660254037844387);
+        gsl_matrix_set(Mback,10,10,0.0);
+        gsl_matrix_set(Mback,10,11,-0.8660254037844385);
+        gsl_matrix_set(Mback,10,12,-0.8660254037844389);
+        gsl_matrix_set(Mback,10,13,-2.288475490443933e-17);
+        gsl_matrix_set(Mback,10,14,0.8660254037844389);
+
+// location 3.5
+        gsl_matrix_set(Mback,11,0,1.0);
+        gsl_matrix_set(Mback,11,1,0.1045284632676535);
+        gsl_matrix_set(Mback,11,2,-0.9781476007338056);
+        gsl_matrix_set(Mback,11,3,-0.3090169943749471);
+        gsl_matrix_set(Mback,11,4,0.9135454576426009);
+        gsl_matrix_set(Mback,11,5,0.5000000000000008);
+        gsl_matrix_set(Mback,11,6,-0.8090169943749479);
+        gsl_matrix_set(Mback,11,7,-0.6691306063588584);
+        gsl_matrix_set(Mback,11,8,0.9945218953682733);
+        gsl_matrix_set(Mback,11,9,0.2079116908177593);
+        gsl_matrix_set(Mback,11,10,-0.9510565162951537);
+        gsl_matrix_set(Mback,11,11,-0.4067366430758001);
+        gsl_matrix_set(Mback,11,12,0.8660254037844382);
+        gsl_matrix_set(Mback,11,13,0.5877852522924725);
+        gsl_matrix_set(Mback,11,14,-0.7431448254773941);
+
+// location 4.5
+        gsl_matrix_set(Mback,12,0,1.0);
+        gsl_matrix_set(Mback,12,1,-0.3090169943749474);
+        gsl_matrix_set(Mback,12,2,-0.8090169943749475);
+        gsl_matrix_set(Mback,12,3,0.8090169943749475);
+        gsl_matrix_set(Mback,12,4,0.3090169943749477);
+        gsl_matrix_set(Mback,12,5,-1.0);
+        gsl_matrix_set(Mback,12,6,0.3090169943749476);
+        gsl_matrix_set(Mback,12,7,0.8090169943749471);
+        gsl_matrix_set(Mback,12,8,0.9510565162951536);
+        gsl_matrix_set(Mback,12,9,-0.5877852522924730);
+        gsl_matrix_set(Mback,12,10,-0.5877852522924730);
+        gsl_matrix_set(Mback,12,11,0.9510565162951535);
+        gsl_matrix_set(Mback,12,12,3.432713235665899e-17);
+        gsl_matrix_set(Mback,12,13,-0.9510565162951535);
+        gsl_matrix_set(Mback,12,14,0.5877852522924735);
+
+// location 5.5
+        gsl_matrix_set(Mback,13,0,1.0);
+        gsl_matrix_set(Mback,13,1,-0.6691306063588581);
+        gsl_matrix_set(Mback,13,2,-0.1045284632676538);
+        gsl_matrix_set(Mback,13,3,0.8090169943749471);
+        gsl_matrix_set(Mback,13,4,-0.9781476007338055);
+        gsl_matrix_set(Mback,13,5,0.4999999999999996);
+        gsl_matrix_set(Mback,13,6,0.3090169943749465);
+        gsl_matrix_set(Mback,13,7,-0.9135454576426004);
+        gsl_matrix_set(Mback,13,8,0.7431448254773943);
+        gsl_matrix_set(Mback,13,9,-0.9945218953682733);
+        gsl_matrix_set(Mback,13,10,0.5877852522924735);
+        gsl_matrix_set(Mback,13,11,0.2079116908177600);
+        gsl_matrix_set(Mback,13,12,-0.8660254037844389);
+        gsl_matrix_set(Mback,13,13,0.9510565162951539);
+        gsl_matrix_set(Mback,13,14,-0.4067366430758014);
+
+// location 6.5
+        gsl_matrix_set(Mback,14,0,1.0);
+        gsl_matrix_set(Mback,14,1,-0.9135454576426009);
+        gsl_matrix_set(Mback,14,2,0.6691306063588583);
+        gsl_matrix_set(Mback,14,3,-0.3090169943749476);
+        gsl_matrix_set(Mback,14,4,-0.1045284632676532);
+        gsl_matrix_set(Mback,14,5,0.5000000000000008);
+        gsl_matrix_set(Mback,14,6,-0.8090169943749471);
+        gsl_matrix_set(Mback,14,7,0.9781476007338058);
+        gsl_matrix_set(Mback,14,8,0.4067366430758001);
+        gsl_matrix_set(Mback,14,9,-0.7431448254773941);
+        gsl_matrix_set(Mback,14,10,0.9510565162951535);
+        gsl_matrix_set(Mback,14,11,-0.9945218953682734);
+        gsl_matrix_set(Mback,14,12,0.8660254037844382);
+        gsl_matrix_set(Mback,14,13,-0.5877852522924735);
+        gsl_matrix_set(Mback,14,14,0.2079116908177585);
+
+    case 16:
+        allocate_gsl(16);
+        gsl_matrix_set(Mback,0,0,1.0);
+        gsl_matrix_set(Mback,0,1,-1.0);
+        gsl_matrix_set(Mback,0,2,1.0);
+        gsl_matrix_set(Mback,0,3,-1.0);
+        gsl_matrix_set(Mback,0,4,1.0);
+        gsl_matrix_set(Mback,0,5,-1.0);
+        gsl_matrix_set(Mback,0,6,1.0);
+        gsl_matrix_set(Mback,0,7,-1.0);
+        gsl_matrix_set(Mback,0,8,1.0);
+        gsl_matrix_set(Mback,0,9,0.0);
+        gsl_matrix_set(Mback,0,10,0.0);
+        gsl_matrix_set(Mback,0,11,0.0);
+        gsl_matrix_set(Mback,0,12,0.0);
+        gsl_matrix_set(Mback,0,13,0.0);
+        gsl_matrix_set(Mback,0,14,0.0);
+        gsl_matrix_set(Mback,0,15,0.0);
+
+        gsl_matrix_set(Mback,1,0,1.0);
+        gsl_matrix_set(Mback,1,1,-0.9238795325112868);
+        gsl_matrix_set(Mback,1,2,0.7071067811865475);
+        gsl_matrix_set(Mback,1,3,-0.3826834323650898);
+        gsl_matrix_set(Mback,1,4,0.0);
+        gsl_matrix_set(Mback,1,5,0.3826834323650899);
+        gsl_matrix_set(Mback,1,6,-0.7071067811865475);
+        gsl_matrix_set(Mback,1,7,0.9238795325112868);
+        gsl_matrix_set(Mback,1,8,-1.0);
+        gsl_matrix_set(Mback,1,9,-0.3826834323650898);
+        gsl_matrix_set(Mback,1,10,0.7071067811865475);
+        gsl_matrix_set(Mback,1,11,-0.9238795325112868);
+        gsl_matrix_set(Mback,1,12,1.0);
+        gsl_matrix_set(Mback,1,13,-0.9238795325112867);
+        gsl_matrix_set(Mback,1,14,0.7071067811865475);
+        gsl_matrix_set(Mback,1,15,-0.3826834323650897);
+
+        gsl_matrix_set(Mback,2,0,1.0);
+        gsl_matrix_set(Mback,2,1,-0.7071067811865475);
+        gsl_matrix_set(Mback,2,2,0.0);
+        gsl_matrix_set(Mback,2,3,0.7071067811865475);
+        gsl_matrix_set(Mback,2,4,-1.0);
+        gsl_matrix_set(Mback,2,5,0.7071067811865475);
+        gsl_matrix_set(Mback,2,6,0.0);
+        gsl_matrix_set(Mback,2,7,-0.7071067811865475);
+        gsl_matrix_set(Mback,2,8,1.0);
+        gsl_matrix_set(Mback,2,9,-0.7071067811865475);
+        gsl_matrix_set(Mback,2,10,1.0);
+        gsl_matrix_set(Mback,2,11,-0.7071067811865475);
+        gsl_matrix_set(Mback,2,12,0.0);
+        gsl_matrix_set(Mback,2,13,0.7071067811865475);
+        gsl_matrix_set(Mback,2,14,-1.0);
+        gsl_matrix_set(Mback,2,15,0.7071067811865475);
+
+        gsl_matrix_set(Mback,3,0,1.0);
+        gsl_matrix_set(Mback,3,1,-0.3826834323650898);
+        gsl_matrix_set(Mback,3,2,-0.7071067811865475);
+        gsl_matrix_set(Mback,3,3,0.9238795325112868);
+        gsl_matrix_set(Mback,3,4,0.0);
+        gsl_matrix_set(Mback,3,5,-0.9238795325112868);
+        gsl_matrix_set(Mback,3,6,0.7071067811865475);
+        gsl_matrix_set(Mback,3,7,0.3826834323650899);
+        gsl_matrix_set(Mback,3,8,-1.0);
+        gsl_matrix_set(Mback,3,9,-0.9238795325112868);
+        gsl_matrix_set(Mback,3,10,0.7071067811865475);
+        gsl_matrix_set(Mback,3,11,0.3826834323650898);
+        gsl_matrix_set(Mback,3,12,-1.0);
+        gsl_matrix_set(Mback,3,13,0.3826834323650897);
+        gsl_matrix_set(Mback,3,14,0.7071067811865475);
+        gsl_matrix_set(Mback,3,15,-0.9238795325112867);
+
+        gsl_matrix_set(Mback,4,0,1.0);
+        gsl_matrix_set(Mback,4,1,0.0);
+        gsl_matrix_set(Mback,4,2,-1.0);
+        gsl_matrix_set(Mback,4,3,0.0);
+        gsl_matrix_set(Mback,4,4,1.0);
+        gsl_matrix_set(Mback,4,5,0.0);
+        gsl_matrix_set(Mback,4,6,-1.0);
+        gsl_matrix_set(Mback,4,7,0.0);
+        gsl_matrix_set(Mback,4,8,1.0);
+        gsl_matrix_set(Mback,4,9,-1.0);
+        gsl_matrix_set(Mback,4,10,0.0);
+        gsl_matrix_set(Mback,4,11,1.0);
+        gsl_matrix_set(Mback,4,12,0.0);
+        gsl_matrix_set(Mback,4,13,-1.0);
+        gsl_matrix_set(Mback,4,14,0.0);
+        gsl_matrix_set(Mback,4,15,1.0);
+
+        gsl_matrix_set(Mback,5,0,1.0);
+        gsl_matrix_set(Mback,5,1,0.3826834323650898);
+        gsl_matrix_set(Mback,5,2,-0.7071067811865475);
+        gsl_matrix_set(Mback,5,3,-0.9238795325112868);
+        gsl_matrix_set(Mback,5,4,0.0);
+        gsl_matrix_set(Mback,5,5,0.9238795325112868);
+        gsl_matrix_set(Mback,5,6,0.7071067811865475);
+        gsl_matrix_set(Mback,5,7,-0.3826834323650898);
+        gsl_matrix_set(Mback,5,8,-1.0);
+        gsl_matrix_set(Mback,5,9,-0.9238795325112868);
+        gsl_matrix_set(Mback,5,10,-0.7071067811865475);
+        gsl_matrix_set(Mback,5,11,0.3826834323650897);
+        gsl_matrix_set(Mback,5,12,1.0);
+        gsl_matrix_set(Mback,5,13,0.3826834323650898);
+        gsl_matrix_set(Mback,5,14,-0.7071067811865475);
+        gsl_matrix_set(Mback,5,15,-0.9238795325112868);
+
+        gsl_matrix_set(Mback,6,0,1.0);
+        gsl_matrix_set(Mback,6,1,0.7071067811865475);
+        gsl_matrix_set(Mback,6,2,0.0);
+        gsl_matrix_set(Mback,6,3,-0.7071067811865475);
+        gsl_matrix_set(Mback,6,4,-1.0);
+        gsl_matrix_set(Mback,6,5,-0.7071067811865475);
+        gsl_matrix_set(Mback,6,6,0.0);
+        gsl_matrix_set(Mback,6,7,0.7071067811865475);
+        gsl_matrix_set(Mback,6,8,1.0);
+        gsl_matrix_set(Mback,6,9,-0.7071067811865475);
+        gsl_matrix_set(Mback,6,10,-1.0);
+        gsl_matrix_set(Mback,6,11,-0.7071067811865475);
+        gsl_matrix_set(Mback,6,12,0.0);
+        gsl_matrix_set(Mback,6,13,0.7071067811865475);
+        gsl_matrix_set(Mback,6,14,1.0);
+        gsl_matrix_set(Mback,6,15,0.7071067811865475);
+
+        gsl_matrix_set(Mback,7,0,1.0);
+        gsl_matrix_set(Mback,7,1,0.9238795325112868);
+        gsl_matrix_set(Mback,7,2,0.7071067811865475);
+        gsl_matrix_set(Mback,7,3,0.3826834323650898);
+        gsl_matrix_set(Mback,7,4,0.0);
+        gsl_matrix_set(Mback,7,5,-0.3826834323650898);
+        gsl_matrix_set(Mback,7,6,-0.7071067811865475);
+        gsl_matrix_set(Mback,7,7,-0.9238795325112868);
+        gsl_matrix_set(Mback,7,8,-1.0);
+        gsl_matrix_set(Mback,7,9,-0.3826834323650898);
+        gsl_matrix_set(Mback,7,10,-0.7071067811865475);
+        gsl_matrix_set(Mback,7,11,-0.9238795325112868);
+        gsl_matrix_set(Mback,7,12,-1.0);
+        gsl_matrix_set(Mback,7,13,-0.9238795325112868);
+        gsl_matrix_set(Mback,7,14,-0.7071067811865475);
+        gsl_matrix_set(Mback,7,15,-0.3826834323650898);
+
+        gsl_matrix_set(Mback,8,0,1.0);
+        gsl_matrix_set(Mback,8,1,1.0);
+        gsl_matrix_set(Mback,8,2,1.0);
+        gsl_matrix_set(Mback,8,3,1.0);
+        gsl_matrix_set(Mback,8,4,1.0);
+        gsl_matrix_set(Mback,8,5,1.0);
+        gsl_matrix_set(Mback,8,6,1.0);
+        gsl_matrix_set(Mback,8,7,1.0);
+        gsl_matrix_set(Mback,8,8,1.0);
+        gsl_matrix_set(Mback,8,9,0.0);
+        gsl_matrix_set(Mback,8,10,0.0);
+        gsl_matrix_set(Mback,8,11,0.0);
+        gsl_matrix_set(Mback,8,12,0.0);
+        gsl_matrix_set(Mback,8,13,0.0);
+        gsl_matrix_set(Mback,8,14,0.0);
+        gsl_matrix_set(Mback,8,15,0.0);
+
+        gsl_matrix_set(Mback,9,0,1.0);
+        gsl_matrix_set(Mback,9,1,0.9238795325112868);
+        gsl_matrix_set(Mback,9,2,0.7071067811865475);
+        gsl_matrix_set(Mback,9,3,0.3826834323650898);
+        gsl_matrix_set(Mback,9,4,0.0);
+        gsl_matrix_set(Mback,9,5,-0.3826834323650898);
+        gsl_matrix_set(Mback,9,6,-0.7071067811865475);
+        gsl_matrix_set(Mback,9,7,-0.9238795325112868);
+        gsl_matrix_set(Mback,9,8,-1.0);
+        gsl_matrix_set(Mback,9,9,0.3826834323650898);
+        gsl_matrix_set(Mback,9,10,0.7071067811865475);
+        gsl_matrix_set(Mback,9,11,0.9238795325112868);
+        gsl_matrix_set(Mback,9,12,1.0);
+        gsl_matrix_set(Mback,9,13,0.9238795325112868);
+        gsl_matrix_set(Mback,9,14,0.7071067811865475);
+        gsl_matrix_set(Mback,9,15,0.3826834323650898);
+
+        gsl_matrix_set(Mback,10,0,1.0);
+        gsl_matrix_set(Mback,10,1,0.7071067811865475);
+        gsl_matrix_set(Mback,10,2,0.0);
+        gsl_matrix_set(Mback,10,3,-0.7071067811865475);
+        gsl_matrix_set(Mback,10,4,-1.0);
+        gsl_matrix_set(Mback,10,5,-0.7071067811865475);
+        gsl_matrix_set(Mback,10,6,0.0);
+        gsl_matrix_set(Mback,10,7,0.7071067811865475);
+        gsl_matrix_set(Mback,10,8,1.0);
+        gsl_matrix_set(Mback,10,9,0.7071067811865475);
+        gsl_matrix_set(Mback,10,10,1.0);
+        gsl_matrix_set(Mback,10,11,0.7071067811865475);
+        gsl_matrix_set(Mback,10,12,0.0);
+        gsl_matrix_set(Mback,10,13,-0.7071067811865475);
+        gsl_matrix_set(Mback,10,14,-1.0);
+        gsl_matrix_set(Mback,10,15,-0.7071067811865475);
+
+        gsl_matrix_set(Mback,11,0,1.0);
+        gsl_matrix_set(Mback,11,1,0.3826834323650898);
+        gsl_matrix_set(Mback,11,2,-0.7071067811865475);
+        gsl_matrix_set(Mback,11,3,-0.9238795325112868);
+        gsl_matrix_set(Mback,11,4,0.0);
+        gsl_matrix_set(Mback,11,5,0.9238795325112868);
+        gsl_matrix_set(Mback,11,6,0.7071067811865475);
+        gsl_matrix_set(Mback,11,7,-0.3826834323650898);
+        gsl_matrix_set(Mback,11,8,-1.0);
+        gsl_matrix_set(Mback,11,9,0.9238795325112868);
+        gsl_matrix_set(Mback,11,10,0.7071067811865475);
+        gsl_matrix_set(Mback,11,11,-0.3826834323650897);
+        gsl_matrix_set(Mback,11,12,-1.0);
+        gsl_matrix_set(Mback,11,13,-0.3826834323650898);
+        gsl_matrix_set(Mback,11,14,0.7071067811865475);
+        gsl_matrix_set(Mback,11,15,0.9238795325112868);
+
+        gsl_matrix_set(Mback,12,0,1.0);
+        gsl_matrix_set(Mback,12,1,0.0);
+        gsl_matrix_set(Mback,12,2,-1.0);
+        gsl_matrix_set(Mback,12,3,0.0);
+        gsl_matrix_set(Mback,12,4,1.0);
+        gsl_matrix_set(Mback,12,5,0.0);
+        gsl_matrix_set(Mback,12,6,-1.0);
+        gsl_matrix_set(Mback,12,7,0.0);
+        gsl_matrix_set(Mback,12,8,1.0);
+        gsl_matrix_set(Mback,12,9,1.0);
+        gsl_matrix_set(Mback,12,10,0.0);
+        gsl_matrix_set(Mback,12,11,-1.0);
+        gsl_matrix_set(Mback,12,12,0.0);
+        gsl_matrix_set(Mback,12,13,1.0);
+        gsl_matrix_set(Mback,12,14,0.0);
+        gsl_matrix_set(Mback,12,15,-1.0);
+
+        gsl_matrix_set(Mback,13,0,1.0);
+        gsl_matrix_set(Mback,13,1,-0.3826834323650898);
+        gsl_matrix_set(Mback,13,2,-0.7071067811865475);
+        gsl_matrix_set(Mback,13,3,0.9238795325112868);
+        gsl_matrix_set(Mback,13,4,0.0);
+        gsl_matrix_set(Mback,13,5,-0.9238795325112868);
+        gsl_matrix_set(Mback,13,6,0.7071067811865475);
+        gsl_matrix_set(Mback,13,7,0.3826834323650899);
+        gsl_matrix_set(Mback,13,8,-1.0);
+        gsl_matrix_set(Mback,13,9,0.9238795325112868);
+        gsl_matrix_set(Mback,13,10,-0.7071067811865475);
+        gsl_matrix_set(Mback,13,11,-0.3826834323650898);
+        gsl_matrix_set(Mback,13,12,1.0);
+        gsl_matrix_set(Mback,13,13,-0.3826834323650897);
+        gsl_matrix_set(Mback,13,14,-0.7071067811865475);
+        gsl_matrix_set(Mback,13,15,0.9238795325112867);
+
+        gsl_matrix_set(Mback,14,0,1.0);
+        gsl_matrix_set(Mback,14,1,-0.7071067811865475);
+        gsl_matrix_set(Mback,14,2,0.0);
+        gsl_matrix_set(Mback,14,3,0.7071067811865475);
+        gsl_matrix_set(Mback,14,4,-1.0);
+        gsl_matrix_set(Mback,14,5,0.7071067811865475);
+        gsl_matrix_set(Mback,14,6,0.0);
+        gsl_matrix_set(Mback,14,7,-0.7071067811865475);
+        gsl_matrix_set(Mback,14,8,1.0);
+        gsl_matrix_set(Mback,14,9,0.7071067811865475);
+        gsl_matrix_set(Mback,14,10,-1.0);
+        gsl_matrix_set(Mback,14,11,0.7071067811865475);
+        gsl_matrix_set(Mback,14,12,0.0);
+        gsl_matrix_set(Mback,14,13,-0.7071067811865475);
+        gsl_matrix_set(Mback,14,14,1.0);
+        gsl_matrix_set(Mback,14,15,-0.7071067811865475);
+
+        gsl_matrix_set(Mback,15,0,1.0);
+        gsl_matrix_set(Mback,15,1,-0.9238795325112868);
+        gsl_matrix_set(Mback,15,2,0.7071067811865475);
+        gsl_matrix_set(Mback,15,3,-0.3826834323650898);
+        gsl_matrix_set(Mback,15,4,0.0);
+        gsl_matrix_set(Mback,15,5,0.3826834323650899);
+        gsl_matrix_set(Mback,15,6,-0.7071067811865475);
+        gsl_matrix_set(Mback,15,7,0.9238795325112868);
+        gsl_matrix_set(Mback,15,8,-1.0);
+        gsl_matrix_set(Mback,15,9,0.3826834323650898);
+        gsl_matrix_set(Mback,15,10,-0.7071067811865475);
+        gsl_matrix_set(Mback,15,11,0.9238795325112868);
+        gsl_matrix_set(Mback,15,12,-1.0);
+        gsl_matrix_set(Mback,15,13,0.9238795325112867);
+        gsl_matrix_set(Mback,15,14,-0.7071067811865475);
+        gsl_matrix_set(Mback,15,15,0.3826834323650897);
+        break;
+
+
     }
+    gsl_matrix_memcpy(Mforw,Mback);
+    gsl_linalg_LU_decomp(Mforw,permut,&signum);
 }
 
-void ImpWidget::setupTrans() {
-    double testin[] = { 1.0, 2.0, 3.0, 4.0 };
-    double testout[4];
-    if(ibase == 3) {
-        if( matSize_gsl != 4 ) {
-            if( matSize_gsl ) {
-                // deallocate matricies
-                gsl_vector_free(UVec);
-                gsl_vector_free(TranVec);
-                gsl_matrix_free(Mforw);
-                gsl_matrix_free(Mback);
-            }
-            UVec = gsl_vector_alloc(4);
-            TranVec = gsl_vector_alloc(4);
-            Mforw = gsl_matrix_alloc(4,4);
-            Mback =  gsl_matrix_alloc(4,4);
-            permut = gsl_permutation_alloc(4);
-            matSize_gsl = 4;
-        }
-//At location  -3/2
-//  f[4] =  1/4, f[5] =  -1/8*sqrt(2), f[6] =  -1/8*sqrt(2), f[7] =  1/4
-        gsl_matrix_set (Mback,0,0,0.25);
-        gsl_matrix_set (Mback,0,1,-sqrt(2)/8);
-        gsl_matrix_set (Mback,0,2,-sqrt(2)/8);
-        gsl_matrix_set (Mback,0,3,0.25);
-//At location  -1/2
-//  f[4] =  3/4, f[5] =  3/8*sqrt(2),  f[6] =  -3/8*sqrt(2), f[7] =  -3/4
-        gsl_matrix_set (Mback,1,0,0.75);
-        gsl_matrix_set (Mback,1,1,sqrt(2)*0.375);
-        gsl_matrix_set (Mback,1,2,-sqrt(2)*0.375);
-        gsl_matrix_set (Mback,1,3,-0.75);
-//At location  1/2
-//  f[4] =  3/4, f[5] =  3/8*sqrt(2),  f[6] =  3/8*sqrt(2),  f[7] =  3/4
-        gsl_matrix_set (Mback,2,0,0.75);
-        gsl_matrix_set (Mback,2,1,sqrt(2)*0.375);
-        gsl_matrix_set (Mback,2,2,sqrt(2)*0.375);
-        gsl_matrix_set (Mback,2,3,0.75);
-//At location  3/2
-//  f[4] =  1/4, f[5] =  -1/8*sqrt(2), f[6] =  1/8*sqrt(2),  f[7] =  -1/4
-        gsl_matrix_set (Mback,3,0,0.25);
-        gsl_matrix_set (Mback,3,1,-sqrt(2)/8);
-        gsl_matrix_set (Mback,3,2,sqrt(2)/8);
-        gsl_matrix_set (Mback,3,3,-0.25);
-
-        gsl_matrix_memcpy (Mforw,Mback);
-        gsl_linalg_LU_decomp (Mforw, permut, &signum);
-        transform = true;
-
-        return;
-        // debug information printout
-        std::cout << " Mback\n";
-        gsl_matrix_fprintf (stdout,Mback,"%g");
-        std::cout << "\n\n Mforw\n";
-        gsl_matrix_fprintf (stdout,Mforw,"%g");
-        gsl_vector_view bvec = gsl_vector_view_array (testin, 4);
-        gsl_vector_view xvec = gsl_vector_view_array (testout, 4);
-        std::cout << "\n\n B\n";
-        gsl_vector_fprintf (stdout,&(bvec.vector),"%g");
-        gsl_linalg_LU_solve (Mforw, permut, &(bvec.vector), &(xvec.vector));
-        std::cout << "\n\n Btran\n";
-        gsl_vector_fprintf (stdout,&(xvec.vector),"%g");
-        gsl_blas_dgemv(CblasNoTrans,1.0,Mback,&(xvec.vector),0.0,&(bvec.vector));
-        std::cout << "\n\n B\n";
-        gsl_vector_fprintf (stdout,&(bvec.vector),"%g");
-
-
-    }
-}

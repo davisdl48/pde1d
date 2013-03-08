@@ -30,13 +30,13 @@ SimpImpWidget::SimpImpWidget(QWidget *parent): SolvWidget(parent)
     impl = 0.5;
     upwind = 0.0;
     impLabel = new QLabel(QString::fromLocal8Bit("Implicit"));
-    impInput = new KDoubleNumInput(0.0,1.0,0.5,parent,0.01,6);
-   
+    impInput = new MyDoubInput(0.5,this,0.0,1.0,0.01,6);
+
     connect(impInput,SIGNAL(valueChanged(double)),this,SLOT(setImpl(double)));
     upwLabel = new QLabel(QString::fromLocal8Bit("Upwinding"));
-    upwInput = new KDoubleNumInput(-0.1,1.1,0.0,parent,0.01,6);
+    upwInput = new MyDoubInput(0.0,this,-0.1,1.1,0.01,6);
     connect(upwInput,SIGNAL(valueChanged(double)),this,SLOT(setUpwind(double)));
-    verticalLayout->insertWidget(4,impLabel); 
+    verticalLayout->insertWidget(4,impLabel);
     verticalLayout->insertWidget(5,impInput);
     verticalLayout->insertWidget(6,upwLabel);
     verticalLayout->insertWidget(7,upwInput);
@@ -52,7 +52,7 @@ SimpImpWidget::SimpImpWidget(const SimpImpWidget& other)
 SimpImpWidget::~SimpImpWidget()
 {
     gsl_vector_free (DIAG);
-    gsl_vector_free (E);// upper 
+    gsl_vector_free (E);// upper
     gsl_vector_free (F);// lower
     gsl_vector_free (B);
     gsl_vector_free (X);
@@ -80,73 +80,76 @@ void SimpImpWidget::setUpwind(double value) {
 
 void SimpImpWidget::setSize(const size_t value)
 {
-  //std::cout << "SimpImpLW::setSize( " << value << " )\n";
-  if( value == N) return;
-  cStep = 0;
-  if( N != 0) {
-    gsl_vector_free (DIAG);
-    gsl_vector_free (E);// upper 
-    gsl_vector_free (F);// lower
-    gsl_vector_free (B);
-    gsl_vector_free (X);
-    delete[] U;
-    delete[] x;
-    delete[] ideal;
-  }
-  N = value;
-  U = new double[N];
-  x = new double[N];
-  ideal = new double[N];
-  DIAG = gsl_vector_alloc (N);
-  E = gsl_vector_alloc (N);
-  F = gsl_vector_alloc (N);
-  B = gsl_vector_alloc (N);
-  X = gsl_vector_alloc (N);
-  initSin(cycles);
+    //std::cout << "SimpImpLW::setSize( " << value << " )\n";
+    if( value == N_) return;
+    if( N_ != 0) { // free derived class storage
+        gsl_vector_free (DIAG);
+        gsl_vector_free (E);// upper
+        gsl_vector_free (F);// lower
+        gsl_vector_free (B);
+        gsl_vector_free (X);
+    }
+    resize(value); // free and reallocate SolvWidget storage
+
+    // allocate local storage
+    DIAG = gsl_vector_alloc (N_);
+    E = gsl_vector_alloc (N_);
+    F = gsl_vector_alloc (N_);
+    B = gsl_vector_alloc (N_);
+    X = gsl_vector_alloc (N_);
 }
 
 void SimpImpWidget::step(size_t nStep) {
-  if(N==0) return;
-  double f0,fm,fp;
-  double ufun;
-  if(CFL > 0 ) {
-    fp= (upwind-1)*CFL/2;
-    f0 = -upwind*CFL;
-    fm = (1+upwind)*CFL/2;
-  }else{
-    fp = -(1+upwind)*CFL/2;
-    f0 = upwind*CFL;
-    fm = (1-upwind)*CFL/2;
-  }
-  for(size_t n = 0; n< nStep; n++) {
-    ufun = fm*U[N-1]+f0*U[0]+fp*U[1];
-    gsl_vector_set (B,0,ufun);
-    for(size_t i=1; i<(N-1); i++) {
-      ufun = fm*U[i-1]+f0*U[i]+fp*U[i+1];
-      gsl_vector_set (B,i,ufun);
+    if(N_==0) return;
+    double f0,fm,fp;
+    double v0,vm,vp;
+    int nm,np;
+    double ufun;
+    for(size_t n = 0; n< nStep; n++) {
+        Efunc(U_);
+        Dfunc(U_);
+        for(size_t nn=0; nn<N_; nn++) {
+            nm = nn-1;
+            nm = (nm < 0 )? N_+nm : nm;
+            np = nn+1;
+            np = (np >= N_)? np-N_ : np;
+            if(CFL*J_[nn] > 0 ) {
+                fp= e_*(upwind-1)*CFL/2;
+                f0 = -e_*upwind*CFL;
+                fm = e_*(1+upwind)*CFL/2;
+            } else {
+                fp = -e_*(1+upwind)*CFL/2;
+                f0 = e_*upwind*CFL;
+                fm = e_*(1-upwind)*CFL/2;
+            }
+            vp = d_*visc_*CFL/dx;
+            v0 = -2*d_*visc_*CFL/dx;
+            vm = d_*visc_*CFL/dx;
+            ufun = fm*E_[nm]+f0*E_[nn]+fp*E_[np] + vm*D_[nm]+v0*D_[nn]+vp*D_[np];
+            //std::cout <<  ufun << '\t' << U_[nn] << std::endl;
+            gsl_vector_set (B,nn,ufun);
+            gsl_vector_set(DIAG,nn,1-(f0*J_[nn]+v0)*impl);
+            gsl_vector_set(E,nn,-(fp*J_[np]+vp)*impl);
+            gsl_vector_set(F,nn,-(fm*J_[nm]+vm)*impl);
+        }
+        //std::cout << std::endl << std::endl;
+        gsl_linalg_solve_cyc_tridiag (DIAG,E,F,B,X);
+        for(size_t i=0; i<N_; i++) {
+            //std::cout <<  gsl_vector_get(X,i) << '\t' << U_[i] << std::endl;
+            U_[i] = U_[i]+ gsl_vector_get(X,i);
+        }
+        //std::cout << std::endl << std::endl;
+        cStep++;
+        totCFL += CFL;
     }
-    ufun = fm*U[N-2]+f0*U[N-1]+fp*U[0];
-    gsl_vector_set (B,N-1,ufun);
-    gsl_vector_set_all(DIAG,1-f0*impl);
-    gsl_vector_set_all(E,-fp*impl);
-    gsl_vector_set_all(F,-fm*impl);
-    gsl_linalg_solve_cyc_tridiag (DIAG,E,F,B,X);
-    for(size_t i=0; i<N; i++) {
-      U[i] = U[i]+gsl_vector_get(X,i);
-      //std::cout << x[i] << '\t' << U[i] << std::endl;
+    return;
+    /*
+    for(size_t i=0; i<N_; i++) {
+      fout << X_[i] << '\t' << U_[i] << std::endl;
     }
-    //std::cout << std::endl << std::endl;
-    cStep++;
-    totCFL += CFL;
-  }
-  return;
-  /*
-  for(size_t i=0; i<N; i++) {
-    fout << x[i] << '\t' << U[i] << std::endl;
-  }
-  fout << std::endl << std::endl;
-  */
-  //gnuplot_close(h1);
+    fout << std::endl << std::endl;
+    */
+    //gnuplot_close(h1);
 }
 
 

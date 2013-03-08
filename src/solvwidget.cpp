@@ -22,16 +22,17 @@
 #include <iostream>
 #include <cmath>
 
-SolvWidget::SolvWidget ( QWidget *parent ) :  QDockWidget ( parent ), Ui_SolvWidget()
+SolvWidget::SolvWidget ( QWidget *parent ) :  QDockWidget ( parent )
 {
-    setupUi ( this );
-    connect ( plotColor, SIGNAL ( activated ( QColor ) ), this, SLOT ( setColor ( QColor ) ) ) ;
+    setupUi ( );
+    //connect ( plotColor, SIGNAL ( activated ( QColor ) ), this, SLOT ( setColor ( QColor ) ) ) ;
     connect ( plotNameEdit, SIGNAL ( textEdited ( QString ) ), this, SLOT ( setTitle ( QString ) ) );
-    N = 0;
+    N_ = 0;
     dt = 0.0;
     pi = 4 * atan ( 1.0 );
     cStep = 0;
     frameNum = 0;
+    dirty = true;
     setFeatures ( QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable);
 }
 
@@ -43,10 +44,10 @@ SolvWidget::SolvWidget ( const SolvWidget& other )
 SolvWidget::~SolvWidget()
 {
     std::cout << "Delete solve widget\n";
-    if ( N != 0 ) {
-        delete[] U;
-        delete[] ideal;
-        delete[] x;
+    if ( N_ != 0 ) {
+        delete[] U_;
+        delete[] Ideal_;
+        delete[] X_;
     }
 }
 
@@ -63,7 +64,7 @@ bool SolvWidget::operator== ( const SolvWidget& other ) const
 
 QColor SolvWidget::getColor()
 {
-    return col;
+    return plotColor->getValue();
 }
 
 QString& SolvWidget::getTitle()
@@ -73,8 +74,7 @@ QString& SolvWidget::getTitle()
 
 void SolvWidget::setColor ( QColor color )
 {
-    col = color;
-    plotColor->setColor ( col );
+    plotColor->setValue ( color );
 }
 
 void SolvWidget::setTitle ( QString newTitle )
@@ -88,17 +88,17 @@ void SolvWidget::setTitle ( QString newTitle )
 void SolvWidget::initSin ( const double value )
 {
     cStep = 0;
-    if ( N == 0 ) setSize ( 100 );
-    totCFL = N / 2.0;
+    if ( N_ == 0 ) setSize ( 100 );
+    totCFL = N_ / 2.0;
     cycles = value;
-    dx = 2 * pi / N;
-    for ( size_t i = 0; i < N; i++ ) {
-        x[i] = dx * i;
-        //U[i] = sin ( cycles * x[i] + travel);
+    dx = 2 * pi / N_;
+    for ( size_t i = 0; i < N_; i++ ) {
+        X_[i] = dx * i;
+        //U_[i] = sin ( cycles * X_[i] + travel);
     }
     getIdeal();
-    for ( size_t i = 0; i < N; i++ ) {
-        U[i] = ideal[i];
+    for ( size_t i = 0; i < N_; i++ ) {
+        U_[i] = Ideal_[i];
     }
 
 }
@@ -109,6 +109,7 @@ void SolvWidget::setCFL ( const double value )
     if ( dx != 0.0 ) {
         dt = CFL * dx;
     }
+    dirty=true;
 }
 
 void SolvWidget::setSpeed ( const double value )
@@ -126,7 +127,7 @@ void SolvWidget::setup ( const size_t size, const double cycles, const double cf
 
 const size_t SolvWidget::getSize()
 {
-    return N;
+    return N_;
 }
 
 const double SolvWidget::getCFL()
@@ -137,12 +138,12 @@ const double SolvWidget::getCFL()
 
 double* SolvWidget::getX()
 {
-    return x;
+    return X_;
 }
 
 double* SolvWidget::getU()
 {
-    return U;
+    return U_;
 }
 
 int SolvWidget::getCurrentStep()
@@ -153,17 +154,23 @@ int SolvWidget::getCurrentStep()
 double* SolvWidget::getIdeal()
 {
     double travel;
-    dx = 2 * pi / N;
-    travel = totCFL / ( double ) N;
+    dx = 2 * pi / N_;
+    double amp;
+    if(e_ == 0.0) {
+      travel = 0.5;
+    }else{
+      travel = totCFL/ ( double ) N_;
+    }
     travel = travel - std::floor ( travel );
+    amp = exp(-(totCFL-N_/2.0)*dx*visc_*d_*cycles*cycles);
     double vx0 = ( 1 - travel ) * 2 * pi;
     double vx;
-    for ( size_t i = 0; i < N; i++ ) {
-        vx = vx0 + x[i];
+    for ( size_t i = 0; i < N_; i++ ) {
+        vx = vx0 + X_[i];
         if ( vx >= 2 * pi ) vx -= ( 2 * pi );
-        ideal[i] = sin ( cycles * vx );
+        Ideal_[i] = amp*sin ( cycles * vx );
     }
-    return ideal;
+    return Ideal_;
 }
 
 double SolvWidget::getCycles()
@@ -173,7 +180,7 @@ double SolvWidget::getCycles()
 
 double SolvWidget::getTravel()
 {
-    return totCFL / ( double ) N;
+    return totCFL / ( double ) N_;
 }
 
 void SolvWidget::closeEvent ( QCloseEvent* ev )
@@ -194,5 +201,122 @@ void SolvWidget::setId ( int value )
     std::cout << " dock " << title.toLocal8Bit().data() << "  id = " << id << std::endl;
 }
 
+void SolvWidget::Efunc(double* Udat) {
+    if(burg) {
+        for(size_t nn=0; nn<N_; nn++) {
+            E_[nn] = Udat[nn]*Udat[nn]/2.0;
+	    J_[nn] = Udat[nn];
+        }
+    } else {
+        for(size_t nn=0; nn<N_; nn++) {
+            E_[nn] = Udat[nn];
+	    J_[nn] = 1.0;
+        }
+    }
+}
+
+void SolvWidget::Dfunc(double* Ddat) {
+    for(size_t nn=0; nn<N_; nn++) {
+        D_[nn]= Ddat[nn];
+    }
+}
 
 
+void SolvWidget::setEquation(int index) {
+    burg=false;
+    dirty=true;
+    switch(index) {
+    default:
+    case 0:
+        d_=0.0;
+        e_=1.0;
+        break;
+    case 1:
+        d_=1.0;
+        e_=0.0;
+        break;
+    case 2:
+        burg=true;
+        e_=1.0;
+        d_=0.0;
+        break;
+    case 3:
+        burg=true;
+        e_=1.0;
+        d_=1.0;
+    }
+}
+
+void SolvWidget::setViscosity(double value) {
+    visc_=value;
+    dirty=true;
+    
+}
+void SolvWidget::resize(int value) {
+    if ( value == N_ ) return;
+    cStep = 0;
+    if ( N_ != 0 ) {
+        delete[] U_;
+        delete[] X_;
+        delete[] Ideal_;
+        delete[] E_;
+	delete[] J_;
+        delete[] D_;
+        delete[] Init_;
+
+    }
+    N_ = value;
+    U_ = new double[N_];
+    X_ = new double[N_];
+    E_ = new double[N_];
+    J_ = new double[N_];
+    D_ = new double[N_];
+    Init_ =  new double[N_];
+
+    Ideal_ = new double[N_];
+    initSin ( cycles );
+}
+bool SolvWidget::getBurg() {
+    return burg;
+}
+
+void SolvWidget::setupUi() {
+    if (objectName().isEmpty())
+        setObjectName(QString::fromUtf8("SolvWidget"));
+    //resize(299, 300);
+    dockWidgetContents = new QWidget();
+    dockWidgetContents->setObjectName(QString::fromUtf8("dockWidgetContents"));
+    verticalLayout = new QVBoxLayout(dockWidgetContents);
+    verticalLayout->setObjectName(QString::fromUtf8("verticalLayout"));
+    plotNameLabel = new QLabel(dockWidgetContents);
+    plotNameLabel->setText(tr("Title"));
+    plotNameLabel->setObjectName(QString::fromUtf8("plotNameLabel"));
+
+    verticalLayout->addWidget(plotNameLabel);
+
+    plotNameEdit = new QLineEdit(dockWidgetContents);
+    plotNameEdit->setObjectName(QString::fromUtf8("plotNameEdit"));
+
+    verticalLayout->addWidget(plotNameEdit);
+
+    plotColorLabel = new QLabel(dockWidgetContents);
+    plotColorLabel->setText(tr("Plot Color"));
+    plotColorLabel->setObjectName(QString::fromUtf8("plotColorLabel"));
+
+    verticalLayout->addWidget(plotColorLabel);
+
+    plotColor = new MyColorButton(dockWidgetContents);
+    plotColor->setObjectName(QString::fromUtf8("plotColor"));
+
+    verticalLayout->addWidget(plotColor);
+
+    verticalSpacer = new QSpacerItem(282, 175, QSizePolicy::Minimum, QSizePolicy::Expanding);
+
+    verticalLayout->addItem(verticalSpacer);
+
+    setWidget(dockWidgetContents);
+
+    //retranslateUi(SolvWidget);
+
+    //QMetaObject::connectSlotsByName(SolvWidget);
+}

@@ -21,14 +21,14 @@
 #include "leastsqrwidget.h"
 #include <gsl/gsl_linalg.h>
 #include <iostream>
-#include<iomanip>
+#include <iomanip>
 
 LeastSqrWidget::LeastSqrWidget ( QWidget *parent ) : SolvWidget ( parent )
 {
     setTitle(tr("Least Squares"));
     plotNameEdit->setText ( title );
     alphaLabel = new QLabel ( QString::fromLocal8Bit ( "Alpha" ) );
-    alphaInput = new KDoubleNumInput ( 0.0, 1.0, 0.5, this, 0.01, 6 );
+    alphaInput = new MyDoubInput ( 0.5, this, 0.0, 1.0, 0.01, 6 );
     connect ( alphaInput, SIGNAL ( valueChanged ( double ) ), this, SLOT ( setAlpha ( double ) ) );
     verticalLayout->insertWidget ( 4, alphaLabel );
     verticalLayout->insertWidget ( 5, alphaInput );
@@ -52,7 +52,7 @@ LeastSqrWidget::LeastSqrWidget ( const LeastSqrWidget& other )
 
 LeastSqrWidget::~LeastSqrWidget()
 {
-    if ( N != 0 ) {
+    if ( N_ != 0 ) {
         gsl_vector_free ( DIAG );
         gsl_vector_free ( E ); // upper
         gsl_vector_free ( F ); // lower
@@ -101,33 +101,33 @@ void LeastSqrWidget::setBasis ( int index )
 void LeastSqrWidget::setSize ( const size_t value )
 {
     std::cout << "LeastSqrLW::setSize( " << value << " )\n";
-    if ( value == N ) return;
+    if ( value == N_ ) return;
     cStep = 0;
-    if ( N != 0 ) {
+    if ( N_ != 0 ) {
         gsl_vector_free ( DIAG );
         gsl_vector_free ( E ); // upper
         gsl_vector_free ( F ); // lower
         gsl_vector_free ( B );
         gsl_vector_free ( X );
-        delete[] U;
-        delete[] x;
-        delete[] ideal;
+        delete[] U_;
+        delete[] X_;
+        delete[] Ideal_;
     }
-    N = value;
-    U = new double[N];
-    x = new double[N];
-    ideal = new double[N];
-    DIAG = gsl_vector_alloc ( N );
-    E = gsl_vector_alloc ( N );
-    F = gsl_vector_alloc ( N );
-    B = gsl_vector_alloc ( N );
-    X = gsl_vector_alloc ( N );
+    N_ = value;
+    U_ = new double[N_];
+    X_ = new double[N_];
+    Ideal_ = new double[N_];
+    DIAG = gsl_vector_alloc ( N_ );
+    E = gsl_vector_alloc ( N_ );
+    F = gsl_vector_alloc ( N_ );
+    B = gsl_vector_alloc ( N_ );
+    X = gsl_vector_alloc ( N_ );
     initSin ( cycles );
 }
 
 void LeastSqrWidget::step ( size_t nStep )
 {
-    if ( N == 0 ) return;
+    if ( N_ == 0 ) return;
     double f00, f01, um1, u00, up1;
     double b2, ab, p2;
     double ufun;
@@ -152,28 +152,28 @@ void LeastSqrWidget::step ( size_t nStep )
         up1 = ( 1.0 / 3.0 - CFL ) / 2.0 + ab;
     }
     for ( size_t n = 0; n < nStep; n++ ) {
-        ufun = um1 * U[N - 1] + u00 * U[0] + up1 * U[1];
+        ufun = um1 * U_[N_ - 1] + u00 * U_[0] + up1 * U_[1];
         gsl_vector_set ( B, 0, ufun );
-        for ( size_t i = 1; i < ( N - 1 ); i++ ) {
-            ufun = um1 * U[i - 1] + u00 * U[i] + up1 * U[i + 1];
+        for ( size_t i = 1; i < ( N_ - 1 ); i++ ) {
+            ufun = um1 * U_[i - 1] + u00 * U_[i] + up1 * U_[i + 1];
             gsl_vector_set ( B, i, ufun );
         }
-        ufun = um1 * U[N - 2] + u00 * U[N - 1] + up1 * U[0];
-        gsl_vector_set ( B, N - 1, ufun );
+        ufun = um1 * U_[N_ - 2] + u00 * U_[N_ - 1] + up1 * U_[0];
+        gsl_vector_set ( B, N_ - 1, ufun );
         gsl_vector_set_all ( DIAG, f00 );
         gsl_vector_set_all ( E, f01 );
         gsl_linalg_solve_symm_cyc_tridiag ( DIAG, E, B, X );
-        for ( size_t i = 0; i < N; i++ ) {
-            U[i] = gsl_vector_get ( X, i );
-            //std::cout << x[i] << '\t' << U[i] << std::endl;
+        for ( size_t i = 0; i < N_; i++ ) {
+            U_[i] = gsl_vector_get ( X, i );
+            //std::cout << X_[i] << '\t' << U_[i] << std::endl;
         }
         //std::cout << std::endl << std::endl;
         cStep++;
         totCFL += CFL;
     }
     return;/*
-  for(size_t i=0; i<N; i++) {
-    fout << x[i] << '\t' << U[i] << std::endl;
+  for(size_t i=0; i<N_; i++) {
+    fout << X_[i] << '\t' << U_[i] << std::endl;
   }
   fout << std::endl << std::endl;
   */

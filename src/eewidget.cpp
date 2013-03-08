@@ -22,29 +22,29 @@
 
 void EEWidget::step ( const size_t nStep )
 {
-  if(N==0) return;
+  if(N_==0) return;
   for(size_t n = 0; n < nStep; n++) {
     if(CFL > 0) {
-      for(size_t i=0; i<N; i++) {
-	f[i]=U[i];
+      for(size_t i=0; i<N_; i++) {
+	f[i]=U_[i];
       }
     }else{
-      for(size_t i=0; i<(N-1); i++) {
-	f[i]=U[i+1];       
+      for(size_t i=0; i<(N_-1); i++) {
+	f[i]=U_[i+1];       
       }
     }  
-    for(size_t i=1; i<N; i++) {
-      U[i] = U[i]+CFL*(f[i-1]-f[i]);
-      //std::cout << x[i] << '\t' << U[i] << std::endl;
+    for(size_t i=1; i<N_; i++) {
+      U_[i] = U_[i]+CFL*(f[i-1]-f[i]);
+      //std::cout << X_[i] << '\t' << U_[i] << std::endl;
     }
-    U[0] = U[0]+CFL*(f[N-1]-f[0]);
+    U_[0] = U_[0]+CFL*(f[N_-1]-f[0]);
     //std::cout << std::endl << std::endl;
     cStep++;
     totCFL += CFL;
   }
   /*
-  for(size_t i=0; i<N; i++) {
-    fout << x[i] << '\t' << U[i] << std::endl;
+  for(size_t i=0; i<N_; i++) {
+    fout << X_[i] << '\t' << U_[i] << std::endl;
   }
   fout << std::endl << std::endl;
   */
@@ -55,18 +55,18 @@ void EEWidget::setSize ( const size_t size )
 {
 
   cStep = 0;
-  if( size == N ) return;
-  if( N != 0) {
-    delete[] U;
+  if( size == N_ ) return;
+  if( N_ != 0) {
+    delete[] U_;
     delete[] f;
-    delete[] x;
-    delete[] ideal;
+    delete[] X_;
+    delete[] Ideal_;
   }
-  N = size;
-  U = new double[N];
-  f = new double[N];
-  x = new double[N];
-  ideal = new double[N];
+  N_ = size;
+  U_ = new double[N_];
+  f = new double[N_];
+  X_ = new double[N_];
+  Ideal_ = new double[N_];
   initSin(cycles);
 }
 
@@ -83,7 +83,7 @@ EEWidget::EEWidget ( const EEWidget& other )
 
 EEWidget::~EEWidget()
 {
-  if(N != 0) {
+  if(N_ != 0) {
     delete[] f;
   }
 }

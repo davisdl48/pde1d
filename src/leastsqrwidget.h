@@ -22,7 +22,7 @@
 #define LEASTSQRWIDGET_H
 
 #include "solvwidget.h"
-#include <knuminput.h>
+#include "myinputs.h"
 #include <gsl/gsl_vector.h>
 
 class LeastSqrWidget : public SolvWidget
@@ -47,7 +47,7 @@ public slots:
 
 protected:
     QLabel *alphaLabel;
-    KDoubleNumInput *alphaInput;
+    MyDoubInput *alphaInput;
     QLabel *weightLabel;
     QComboBox *weightBox;
 
