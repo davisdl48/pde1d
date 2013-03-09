@@ -164,11 +164,19 @@ void Controls::setupUi() {
 
 
     verticalLayout->addLayout(gridLayout);
-
+    
+    horizontalLayout2 = new QHBoxLayout();
+    horizontalLayout2->setObjectName(QString::fromUtf8("horizontalLayout2"));
+    
+    saveImageButton = new QPushButton(dockWidgetContents);
+    saveImageButton->setObjectName(QString::fromUtf8("saveImageButton"));
+    horizontalLayout2->addWidget(saveImageButton);
+    
     savePlotButton = new QPushButton(dockWidgetContents);
     savePlotButton->setObjectName(QString::fromUtf8("savePlotButton"));
+    horizontalLayout2->addWidget(savePlotButton);
 
-    verticalLayout->addWidget(savePlotButton);
+    verticalLayout->addLayout(horizontalLayout2);
 
     animationCheck = new QCheckBox(dockWidgetContents);
     animationCheck->setObjectName(QString::fromUtf8("animationCheck"));
@@ -234,7 +242,8 @@ void Controls::retranslateUi() {
     stepsLabel->setText(QApplication::translate("Controls", "Time Steps", 0, QApplication::UnicodeUTF8));
     incrementLabel->setText(QApplication::translate("Controls", "Plot Incr.", 0, QApplication::UnicodeUTF8));
     label->setText(QApplication::translate("Controls", "Plot Delay", 0, QApplication::UnicodeUTF8));
-    savePlotButton->setText(QApplication::translate("Controls", "Save Image", 0, QApplication::UnicodeUTF8));
+    saveImageButton->setText(QApplication::translate("Controls", "Save Image", 0, QApplication::UnicodeUTF8));
+    savePlotButton->setText(QApplication::translate("Controls", "Save Plot", 0, QApplication::UnicodeUTF8));
     animationCheck->setText(QApplication::translate("Controls", "Save Anim. Frames", 0, QApplication::UnicodeUTF8));
     checkBox->setText(QApplication::translate("Controls", "Save Error Data", 0, QApplication::UnicodeUTF8));
     resetButton->setText(QApplication::translate("Controls", "Reset", 0, QApplication::UnicodeUTF8));

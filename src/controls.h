@@ -76,10 +76,12 @@ public:
     QLabel *label;
     MyIntInput *plotDelayInput;
     QPushButton *savePlotButton;
+    QPushButton *saveImageButton;
     QCheckBox *animationCheck;
     QCheckBox *checkBox;
     QSpacerItem *verticalSpacer_2;
     QHBoxLayout *horizontalLayout;
+    QHBoxLayout *horizontalLayout2;
     QPushButton *resetButton;
     QPushButton *runButton;
     QPushButton *stopButton;

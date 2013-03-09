@@ -23,6 +23,7 @@
 #include <qwt_plot.h>
 #include <qwt_legend.h>
 #include <qwt_plot_curve.h>
+#include <qwt_plot_renderer.h>
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -77,8 +78,10 @@ pde1d::pde1d() : QMainWindow(), Ui_MainWindow()
     connect ( control->intTimeSteps, SIGNAL ( valueChanged ( int ) ), this, SLOT ( setStop ( int ) ) );
     connect ( control->intPlotIncrement, SIGNAL ( valueChanged ( int ) ), this, SLOT ( setStep ( int ) ) );
     control->intPlotIncrement->setToolTip(tr("Plot incement = # points / CFL optional / cycles will stobe exact solution"));
-    connect ( control->savePlotButton, SIGNAL ( clicked ( bool ) ), this, SLOT ( saveImage() ) );
-    control->savePlotButton->setToolTip(tr("Saves the main window including plot to a .png file"));
+    connect ( control->saveImageButton, SIGNAL ( clicked ( bool ) ), this, SLOT ( saveImage() ) );
+    control->saveImageButton->setToolTip(tr("Saves the main window including plot to a file(default=.png)"));
+    connect ( control->savePlotButton, SIGNAL ( clicked ( bool ) ), this, SLOT ( savePlot() ) );
+    control->savePlotButton->setToolTip(tr("Saves the plot to a vector file(default=.svg)"));
     //connect ( control->plotDelayInput,SIGNAL( valueChanged ( int ) , this, SLOT( ..... ));
     connect ( control->resetButton, SIGNAL ( clicked ( bool ) ), this, SLOT ( reset() ) );
     control->resetButton->setToolTip(tr("Restart simulation at initial condition"));
@@ -90,7 +93,6 @@ pde1d::pde1d() : QMainWindow(), Ui_MainWindow()
     control->setFeatures ( QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable );
     addDockWidget ( Qt::LeftDockWidgetArea, control );
     replot ( "Initial Condition" );
-    savePlot ( "Initial.png" );
     N_ = 100;
     cycles = 1.0;
     CFL = 1.0;
@@ -346,23 +348,40 @@ void pde1d::reset()
     metrics();
 }
 
-void pde1d::savePlot ( const QString& fileName, const char* format, int quality )
+void pde1d::savePlot ( )
 {
-    std::cout << "width= " << qwtPlot->width() << std::endl;
-    QImage plot ( size(), QImage::Format_RGB666 );
-    render ( &plot );
-    plot.save ( fileName, format, quality );
+  int ipt; 
+  QString pfile = QFileDialog::getSaveFileName ( this, tr ( "Save Plot" ), "", tr ( "Images ( *.pdf *.svg *.ps *eps )" )  );
+  QString form = "svg";
+  QSizeF qs(161.80,100.0);
+  QwtPlotRenderer rend(this);
+  if ( pfile.contains ( QRegExp ( "//.(pdf|svg|ps|eps)$",Qt::CaseInsensitive  ) ) ) {  
+    ipt = pfile.lastIndexOf(".");
+    ipt = pfile.size() - ipt -1;
+    form = pfile;
+    form = form.right(ipt);
+    rend.renderDocument(qwtPlot,pfile,form,qs);
+  }else if ( pfile.contains ( QRegExp ( "//.(bmp|jpg|jpeg|png|ppm|tiff|xbm|xpm)$", Qt::CaseInsensitive ) ) ) {
+    ipt = pfile.lastIndexOf(".");  
+    if( ipt > 1 && (pfile.length()-ipt == 4 || pfile.length()-ipt == 5 ) ) {
+      pfile.truncate(ipt);
+      pfile += ".svg";
+    }
+    rend.renderDocument(qwtPlot,pfile,"svg",qs);
+  }
 }
 
 void pde1d::saveImage()
 {
-    QString fileName = QFileDialog::getSaveFileName ( this, tr ( "Save Image" ), "", tr ( "Images (*.png *.xpm *.jpg)" ) );
+    QString fileName = QFileDialog::getSaveFileName ( this, tr ( "Save Image" ), "", tr ( "Images ( *.jpg *.jpeg *.png *.ppm *.tiff *.xbm *.xpm *.bmp )" ) );
+    QImage plot( size(), QImage::Format_RGB666 );
+    render ( &plot );
     if ( fileName.length() == 0 ) return;
     std::cout << fileName.toUtf8().constData() << std::endl;
-    if ( fileName.contains ( QRegExp ( "//.(png|xpm|jpg)$", Qt::CaseInsensitive ) ) ) {
-        savePlot ( fileName );
+    if ( fileName.contains ( QRegExp ( "//.(bmp|jpg|jpeg|png|ppm|tiff|xbm|xpm)$", Qt::CaseInsensitive ) ) ) {
+        plot.save( fileName );
     } else {
-        savePlot ( fileName, "PNG", 100 );
+        plot.save( fileName, "PNG", -1);
     }
 }
 

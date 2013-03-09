@@ -29,13 +29,13 @@ public:
        void run();
        void stopRun();
        void saveImage();
+       void savePlot();
        void addSolver(int index = 0);
        void removeSolver(int index = 0);
        //void removeSolver(QObject *obj = 0);
 	  	 
       
 private:
-  void savePlot(const QString & fileName, const char * format = 0, int quality = -1) ;
   void replot(const char * title);
   void metrics();
   void updateNames();
