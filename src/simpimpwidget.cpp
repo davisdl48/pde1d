@@ -41,6 +41,7 @@ SimpImpWidget::SimpImpWidget(QWidget *parent): SolvWidget(parent)
     verticalLayout->insertWidget(6,upwLabel);
     verticalLayout->insertWidget(7,upwInput);
     setColor( Qt::green );
+  unstable = false;
 
 }
 
@@ -105,6 +106,7 @@ void SimpImpWidget::step(size_t nStep) {
     double v0,vm,vp;
     int nm,np;
     double ufun;
+    if(unstable) return;
     for(size_t n = 0; n< nStep; n++) {
         Efunc(U_);
         Dfunc(U_);
@@ -137,6 +139,7 @@ void SimpImpWidget::step(size_t nStep) {
         for(size_t i=0; i<N_; i++) {
             //std::cout <<  gsl_vector_get(X,i) << '\t' << U_[i] << std::endl;
             U_[i] = U_[i]+ gsl_vector_get(X,i);
+	    if(U_[i] > 1e16) unstable = true;
         }
         //std::cout << std::endl << std::endl;
         cStep++;
@@ -150,6 +153,9 @@ void SimpImpWidget::step(size_t nStep) {
     fout << std::endl << std::endl;
     */
     //gnuplot_close(h1);
+}
+bool SimpImpWidget::canSolve(int equ) {
+    return true;
 }
 
 

@@ -36,6 +36,7 @@ public:
 	
 	virtual void step ( const size_t nStep );
 	virtual void setSize ( const size_t size = 100 );
+	bool canSolve(int equ) ;
 
 
 protected:

@@ -34,6 +34,8 @@ SolvWidget::SolvWidget ( QWidget *parent ) :  QDockWidget ( parent )
     frameNum = 0;
     dirty = true;
     setFeatures ( QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable);
+    
+  unstable = false;
 }
 
 SolvWidget::SolvWidget ( const SolvWidget& other )
@@ -100,6 +102,7 @@ void SolvWidget::initSin ( const double value )
     for ( size_t i = 0; i < N_; i++ ) {
         U_[i] = Ideal_[i];
     }
+    unstable = false;
 
 }
 
@@ -223,6 +226,7 @@ void SolvWidget::Dfunc(double* Ddat) {
 
 
 void SolvWidget::setEquation(int index) {
+    equation = index;
     burg=false;
     dirty=true;
     switch(index) {
@@ -283,7 +287,6 @@ bool SolvWidget::getBurg() {
 void SolvWidget::setupUi() {
     if (objectName().isEmpty())
         setObjectName(QString::fromUtf8("SolvWidget"));
-    //resize(299, 300);
     dockWidgetContents = new QWidget();
     dockWidgetContents->setObjectName(QString::fromUtf8("dockWidgetContents"));
     verticalLayout = new QVBoxLayout(dockWidgetContents);
@@ -310,13 +313,26 @@ void SolvWidget::setupUi() {
 
     verticalLayout->addWidget(plotColor);
 
-    verticalSpacer = new QSpacerItem(282, 175, QSizePolicy::Minimum, QSizePolicy::Expanding);
+    verticalSpacer = new QSpacerItem(240, 175, QSizePolicy::Minimum, QSizePolicy::Expanding);
 
     verticalLayout->addItem(verticalSpacer);
+    
 
     setWidget(dockWidgetContents);
+    
+    //dockWidgetContents->resize(250, 640);
+    
+    //dockWidgetContents->setMaximumWidth ( 250 );
 
     //retranslateUi(SolvWidget);
 
     //QMetaObject::connectSlotsByName(SolvWidget);
+}
+
+bool SolvWidget::canSolve(int equ) {
+    return false;
+}
+
+bool SolvWidget::isUnstable() {
+    return unstable;
 }

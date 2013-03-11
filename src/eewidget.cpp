@@ -23,6 +23,7 @@
 void EEWidget::step ( const size_t nStep )
 {
   if(N_==0) return;
+  if(unstable) return;
   for(size_t n = 0; n < nStep; n++) {
     if(CFL > 0) {
       for(size_t i=0; i<N_; i++) {
@@ -35,6 +36,7 @@ void EEWidget::step ( const size_t nStep )
     }  
     for(size_t i=1; i<N_; i++) {
       U_[i] = U_[i]+CFL*(f[i-1]-f[i]);
+      if(U_[i] > 1e16) unstable = true;
       //std::cout << X_[i] << '\t' << U_[i] << std::endl;
     }
     U_[0] = U_[0]+CFL*(f[N_-1]-f[0]);
@@ -75,6 +77,7 @@ EEWidget::EEWidget(): SolvWidget()
   setTitle(tr("Explict Euler 1"));
   plotNameEdit->setText(title);
   setColor(Qt::red);
+  unstable = false;
 }
 
 EEWidget::EEWidget ( const EEWidget& other )
@@ -97,5 +100,8 @@ bool EEWidget::operator== ( const EEWidget& other ) const
 {
 
     return (this == &other);
+}
+bool EEWidget::canSolve(int equ) {
+    return (equ == 0);
 }
 

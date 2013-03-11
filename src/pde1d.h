@@ -3,6 +3,7 @@
 
 #include <QtGui/QMainWindow>
 #include <QString>
+#include <QtGui/QStandardItemModel>
 #include "solvwidget.h"
 #include "controls.h"
 #include "ui_firstwindow.h"
@@ -52,7 +53,8 @@ private:
   double visc;
   std::vector<SolvWidget *> eeWidgets;
   ErrTabDock *errTab;
-  Controls *control;
+  Controls *control; 
+  QStandardItemModel * solvModel;
   int dockID;
 };
 

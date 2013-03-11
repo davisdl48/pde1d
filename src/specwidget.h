@@ -26,6 +26,8 @@
 #include <gsl/gsl_fft_real.h>
 #include <gsl/gsl_fft_halfcomplex.h>
 #include <gsl/gsl_errno.h>
+
+#include <QtGui/QStandardItemModel>
 //#include "../superlu/SRC/slu_ddefs.h"
 
 class SpecWidget : public SolvWidget
@@ -47,6 +49,8 @@ public:
     virtual void initSin ( const double value );
     virtual double* getU();
     void setNStage(int arg1) ;
+    virtual void setEquation( int index) ;
+    bool canSolve(int equ) ;
 
 public slots:
     void setImplicit ( double value = 5/12.0 ) ;
@@ -63,6 +67,7 @@ protected:
     QComboBox *weightBox;
     QLabel *methodLabel;
     QComboBox *methodBox;
+    QStandardItemModel * methodModel;
 
     int method;
     double impl;

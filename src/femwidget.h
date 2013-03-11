@@ -27,38 +27,39 @@
 
 
 class FEMWidget : public SolvWidget {
-  Q_OBJECT
+    Q_OBJECT
 
 public:
-	FEMWidget(QWidget *parent=0);
-	FEMWidget ( const FEMWidget& other );
-	virtual ~FEMWidget();
-	virtual FEMWidget& operator= ( const FEMWidget& other );
-	virtual bool operator== ( const FEMWidget& other ) const;
-	
-	virtual void step ( const size_t nStep );
-	virtual void setSize ( const size_t size = 100 );
-        const double getAlpha();
-    
-    public slots:
-      void setAlpha(double value = 0.5);
-      void setBasis(int index);
-      
-	
+    FEMWidget(QWidget *parent=0);
+    FEMWidget ( const FEMWidget& other );
+    virtual ~FEMWidget();
+    virtual FEMWidget& operator= ( const FEMWidget& other );
+    virtual bool operator== ( const FEMWidget& other ) const;
+
+    virtual void step ( const size_t nStep );
+    virtual void setSize ( const size_t size = 100 );
+    const double getAlpha();
+    bool canSolve(int equ) ;
+
+public slots:
+    void setAlpha(double value = 0.5);
+    void setBasis(int index);
+
+
 protected:
-  QLabel *alphaLabel;
-  MyDoubInput *alphaInput;
-  QLabel *weightLabel;
-  QComboBox *weightBox;
-  
-  double a;
-  double b;
-  bool cosBas;
-  gsl_vector * X;
-  gsl_vector * DIAG;
-  gsl_vector * E;
-  gsl_vector * F;
-  gsl_vector * B;
+    QLabel *alphaLabel;
+    MyDoubInput *alphaInput;
+    QLabel *weightLabel;
+    QComboBox *weightBox;
+
+    double a;
+    double b;
+    bool cosBas;
+    gsl_vector * X;
+    gsl_vector * DIAG;
+    gsl_vector * E;
+    gsl_vector * F;
+    gsl_vector * B;
 };
 
 #endif // LS2WIDGET_H

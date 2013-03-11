@@ -20,6 +20,7 @@
 #include <QFileDialog>
 #include <QRegExp>
 #include <QtGui/QImage>
+#include <QtGui/QStandardItem>
 #include <qwt_plot.h>
 #include <qwt_legend.h>
 #include <qwt_plot_curve.h>
@@ -27,6 +28,13 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
+
+const bool pdeSolvers[4][9] =  {
+    {true, true, true, true, true, true, true, true, true},
+    {true, true, true, true, true, true, true, true, true},
+    {true, false, false, true, false, false, true, false, true},
+    {true, false, false, true, false, false, true, false, true}
+};
 
 /*! Main window with a qwt plot area and a control dock widget
 */
@@ -48,7 +56,29 @@ pde1d::pde1d() : QMainWindow(), Ui_MainWindow()
     addDockWidget ( Qt::BottomDockWidgetArea, errTab );
 
     control = new Controls ( tr ( "Controls" ), this );
+
+    control->pdeBox->addItem( tr("U_t + c U_x = 0"));
+    control->pdeBox->addItem( tr("U_t - d_ U_xx = 0"));
+    control->pdeBox->addItem( tr("U_t+(U^2)_x=0"));
+    control->pdeBox->addItem( tr("U_t+(U^2)_x-d_ U_xx"));
+    connect ( control->pdeBox, SIGNAL( activated(int) ), this, SLOT( setEquation(int) ));
+
     connect ( control->addSolvCombo, SIGNAL ( activated ( int ) ), this, SLOT ( addSolver ( int ) ) );
+    solvModel = new QStandardItemModel(this);
+    control->addSolvCombo->setModel(solvModel);
+    solvModel->appendRow( new QStandardItem ( tr("Add New Solver") ));
+    solvModel->appendRow( new QStandardItem ( tr("Euler Explicit") ));  // addSolver(1)
+    solvModel->appendRow( new QStandardItem ( tr("Least Sqr Plus") ));  // addSolver(2)
+    solvModel->appendRow( new QStandardItem ( tr("Simple Implicit") )); // addSolver(3)
+    solvModel->appendRow( new QStandardItem ( tr("Finite Element Method") ));// addSolver(4)
+    solvModel->appendRow( new QStandardItem ( tr("General Implicit") ));// addSolver(5)
+    solvModel->appendRow( new QStandardItem ( tr("Explicit Runge Kutta") ));// addSolver(6)
+    solvModel->appendRow( new QStandardItem ( tr("Envelope") ));        // addSolver(7)
+    solvModel->appendRow( new QStandardItem ( tr("Spectral FFT") ));    // addSolver(8)
+    solvModel->appendRow( new QStandardItem ( tr("Pseudo Spectral") )); // addSolver(9)
+
+
+    /*
     control->addSolvCombo->addItem(tr("None"));
     control->addSolvCombo->addItem(tr("Euler Explicit")); // addSolver(1)
     control->addSolvCombo->addItem(tr("Least Sqr Plus"));  // addSolver(2)
@@ -59,13 +89,9 @@ pde1d::pde1d() : QMainWindow(), Ui_MainWindow()
     control->addSolvCombo->addItem(tr("Envelope"));  // addSolver(7)
     control->addSolvCombo->addItem(tr("Spectral FFT"));  // addSolver(8)
     control->addSolvCombo->addItem(tr("Pseudo Spectral"));  // addSolver(9)
+    */
     control->addSolvCombo->setToolTip(tr("Add a numerical solver"));
 
-    control->pdeBox->addItem( tr("U_t + c U_x = 0"));
-    control->pdeBox->addItem( tr("U_t - d_ U_xx = 0"));
-    control->pdeBox->addItem( tr("U_t+(U^2)_x=0"));
-    control->pdeBox->addItem( tr("U_t+(U^2)_x-d_ U_xx"));
-    connect ( control->pdeBox, SIGNAL( activated(int) ), this, SLOT( setEquation(int) ));
 
     connect ( control->viscInput, SIGNAL( valueChanged(double)), this, SLOT( setViscosity(double)));
 
@@ -107,25 +133,49 @@ pde1d::~pde1d()
 
 void pde1d::replot ( const char * title )
 {
+    double xu[1] = {0.0};
+    double uu[1] = {0.0};
     if ( eeWidgets.empty() ) return;
 
     qwtPlot->detachItems();
     qwtPlot->insertLegend ( new QwtLegend(), QwtPlot::BottomLegend );
 
     QwtPlotCurve *c1;
-    if(equation < 2 && ( equation != 1 && (cycles - floor(cycles) < 1e-5) ) ) {
-
-        c1 = new QwtPlotCurve ( "Ideal Values" );
-        c1->setSamples ( eeWidgets[0]->getX(), eeWidgets[0]->getIdeal(), N_ );
-        c1->attach ( qwtPlot );
+    if( equation == 1 && (cycles - floor(cycles) < 1e-5) )  {
+        for ( size_t i = 0; i < eeWidgets.size();  i++ ) {
+            if( !(eeWidgets[i]->isUnstable()) ) {
+                c1 = new QwtPlotCurve ( "Ideal Values" );
+                c1->setSamples ( eeWidgets[i]->getX(), eeWidgets[i]->getIdeal(), N_ );
+                c1->attach ( qwtPlot );
+                break;
+            }
+        }
+    } else if(equation == 0 ) {
+        for ( size_t i = 0; i < eeWidgets.size();  i++ ) {
+            if( !(eeWidgets[i]->isUnstable()) ) {
+                c1 = new QwtPlotCurve ( "Ideal Values" );
+                c1->setSamples ( eeWidgets[i]->getX(), eeWidgets[i]->getIdeal(), N_ );
+                c1->attach ( qwtPlot );
+                break;
+            }
+        }
     }
 
-    for ( size_t i = 0; i < eeWidgets.size(); i++ ) {
-        c1 = new QwtPlotCurve ( eeWidgets[i]->getTitle() );
-        c1->setSamples ( eeWidgets[i]->getX(), eeWidgets[i]->getU(), N_ );
-        c1->setPen ( QPen ( QBrush ( eeWidgets[i]->getColor() ), 1.5, Qt::DashLine ) );
-        //c1->pen().setStyle(Qt::DashLine);
-        c1->attach ( qwtPlot );
+
+    for ( size_t i = 0; i < eeWidgets.size();  i++ ) {
+        if( eeWidgets[i]->canSolve(equation) ) {
+            if( eeWidgets[i]->isUnstable() ) {
+                c1 = new QwtPlotCurve ( "**"+eeWidgets[i]->getTitle()+"-Unst" );
+                c1->setSamples ( xu, uu, 1 );
+                c1->setPen ( QPen ( QBrush ( eeWidgets[i]->getColor() ), 1.5, Qt::DashLine ) );
+            } else {
+                c1 = new QwtPlotCurve ( eeWidgets[i]->getTitle() );
+                c1->setSamples ( eeWidgets[i]->getX(), eeWidgets[i]->getU(), N_ );
+                c1->setPen ( QPen ( QBrush ( eeWidgets[i]->getColor() ), 1.5, Qt::DashLine ) );
+            }
+            //c1->pen().setStyle(Qt::DashLine);
+            c1->attach ( qwtPlot );
+        }
     }
 
     qwtPlot->setTitle ( title );
@@ -298,8 +348,6 @@ void pde1d::setCFL ( double value )
     }
 }
 
-
-
 void pde1d::setStop ( int value )
 {
     if ( eeWidgets.empty() ) {
@@ -316,22 +364,36 @@ void pde1d::setStep ( int value )
 
 void pde1d::run()
 {
+    int istab=-1;
     if ( eeWidgets.empty() ) return;
-    updateNames();
-    if ( eeWidgets[0]->getCurrentStep() >= stop ) {
+    for( int i=0; i< eeWidgets.size(); i++) {
+      if( !(eeWidgets[i]->isUnstable()) ) { 
+	istab=i;
+	break;
+      }
+    }
+    if(istab == -1) return;
+    //updateNames();
+    if ( eeWidgets[istab]->getCurrentStep() >= stop ) {
         metrics();
-        stop = eeWidgets[0]->getCurrentStep() + control->intTimeSteps->getValue();
+        stop = eeWidgets[istab]->getCurrentStep() + control->intTimeSteps->getValue();
         return;
     }
     int iters = step;
-    if ( eeWidgets[0]->getCurrentStep() + step > stop ) {
-        iters = stop - eeWidgets[0]->getCurrentStep();
+    if ( eeWidgets[istab]->getCurrentStep() + step > stop ) {
+        iters = stop - eeWidgets[istab]->getCurrentStep();
     }
     for ( size_t i = 0; i < eeWidgets.size(); i++ ) {
         eeWidgets[i]->step ( iters );
     }
+    for( int i=0; i< eeWidgets.size(); i++) {
+      if( !(eeWidgets[i]->isUnstable()) ) { 
+	istab=i;
+	break;
+      }
+    }
     std::ostringstream s1;
-    s1 << "Cycle " << std::fixed << std::setw ( 10 ) << std::setprecision ( 3 ) << ( eeWidgets[0]->getTravel() - 0.5 );
+    s1 << "Cycle " << std::fixed << std::setw ( 10 ) << std::setprecision ( 3 ) << ( eeWidgets[istab]->getTravel() - 0.5 );
     replot ( s1.str().c_str() );
     QTimer::singleShot ( 10, this, SLOT ( run() ) );
 }
@@ -350,25 +412,25 @@ void pde1d::reset()
 
 void pde1d::savePlot ( )
 {
-  int ipt; 
-  QString pfile = QFileDialog::getSaveFileName ( this, tr ( "Save Plot" ), "", tr ( "Images ( *.pdf *.svg *.ps *eps )" )  );
-  QString form = "svg";
-  QSizeF qs(161.80,100.0);
-  QwtPlotRenderer rend(this);
-  if ( pfile.contains ( QRegExp ( "//.(pdf|svg|ps|eps)$",Qt::CaseInsensitive  ) ) ) {  
-    ipt = pfile.lastIndexOf(".");
-    ipt = pfile.size() - ipt -1;
-    form = pfile;
-    form = form.right(ipt);
-    rend.renderDocument(qwtPlot,pfile,form,qs);
-  }else if ( pfile.contains ( QRegExp ( "//.(bmp|jpg|jpeg|png|ppm|tiff|xbm|xpm)$", Qt::CaseInsensitive ) ) ) {
-    ipt = pfile.lastIndexOf(".");  
-    if( ipt > 1 && (pfile.length()-ipt == 4 || pfile.length()-ipt == 5 ) ) {
-      pfile.truncate(ipt);
-      pfile += ".svg";
+    int ipt;
+    QString pfile = QFileDialog::getSaveFileName ( this, tr ( "Save Plot" ), "", tr ( "Images ( *.pdf *.svg *.ps *eps )" )  );
+    QString form = "svg";
+    QSizeF qs(161.80,100.0);
+    QwtPlotRenderer rend(this);
+    if ( pfile.contains ( QRegExp ( "//.(pdf|svg|ps|eps)$",Qt::CaseInsensitive  ) ) ) {
+        ipt = pfile.lastIndexOf(".");
+        ipt = pfile.size() - ipt -1;
+        form = pfile;
+        form = form.right(ipt);
+        rend.renderDocument(qwtPlot,pfile,form,qs);
+    } else if ( pfile.contains ( QRegExp ( "//.(bmp|jpg|jpeg|png|ppm|tiff|xbm|xpm)$", Qt::CaseInsensitive ) ) ) {
+        ipt = pfile.lastIndexOf(".");
+        if( ipt > 1 && (pfile.length()-ipt == 4 || pfile.length()-ipt == 5 ) ) {
+            pfile.truncate(ipt);
+            pfile += ".svg";
+        }
+        rend.renderDocument(qwtPlot,pfile,"svg",qs);
     }
-    rend.renderDocument(qwtPlot,pfile,"svg",qs);
-  }
 }
 
 void pde1d::saveImage()
@@ -441,6 +503,7 @@ void pde1d::addSolver ( int index )
     }
     metrics();
     reset();
+    control->addSolvCombo->setCurrentIndex(0);
 }
 
 void pde1d::removeSolver ( int id )
@@ -480,11 +543,14 @@ void pde1d::updateNames()
 
 void pde1d::setEquation(int value) {
     equation=value;
+    control->pdeBox->setCurrentIndex(equation);
+    for( int i=0; i<9; i++ ) {
+        solvModel->item(i)->setEnabled(pdeSolvers[equation][i]);
+    }
     if ( eeWidgets.empty() ) return;
     for ( size_t i = 0; i < eeWidgets.size(); i++ ) {
         eeWidgets[i]->setEquation ( value);
     }
-    control->pdeBox->setCurrentIndex(equation);
 }
 
 void pde1d::setViscosity(double value) {

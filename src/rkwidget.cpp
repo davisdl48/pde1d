@@ -70,6 +70,7 @@ RKWidget::RKWidget ( QWidget* parent ) : SolvWidget(parent)
     setBasis(0);
     method=-1;
     setMethod(0);
+  unstable = false;
     //set_default_options(&options);
 }
 
@@ -219,8 +220,7 @@ void RKWidget::step ( const size_t nStep )
     DNformat *Bstore;
     DNformat *Xstore;
     double temp;
-    double chng;
-    chng=0.0;
+    if(unstable) return;
     if( dirty ) {
         if(aexist) {
             Destroy_CompCol_Matrix(&A);
@@ -313,7 +313,7 @@ void RKWidget::step ( const size_t nStep )
                 Xstore = (DNformat *)X.Store;
                 rhsx = (double*)(Xstore->nzval);
                 for ( size_t i = 0; i <  N_ ; i++ ) {
-                    chng += rhsx[i]*rhsx[i];
+                    if(rhsx[i]> 1e16) unstable = true;
                     b_k[i+N_*ns]=rhsx[i];
                 }
             } else {
@@ -916,6 +916,9 @@ void RKWidget::setNStage(int arg1) {
         b_b[i] = 0.0;
         b_c[i] = 0.0;
     }
+}
+bool RKWidget::canSolve(int equ) {
+    return true;
 }
 
 

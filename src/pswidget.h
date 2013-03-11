@@ -21,6 +21,7 @@
 #ifndef PSWIDGET_H
 #define PSWIDGET_H
 
+#include <QtGui/QStandardItemModel>
 #include "solvwidget.h"
 #include "myinputs.h"
 #include <gsl/gsl_fft_real.h>
@@ -47,67 +48,71 @@ public:
     virtual void initSin ( const double value );
     virtual double* getU();
     void setNStage(int arg1) ;
+    virtual void setEquation( int index) ;
+    bool canSolve(int equ) ;
 
 public slots:
-    void setImplicit ( double value = 5/12.0 ) ;
-    void setBackward ( double value = -1/12.0 );
-    void setMethod ( int index ) ;
-	  
+        void setImplicit ( double value = 5/12.0 ) ;
+        void setBackward ( double value = -1/12.0 );
+        void setMethod ( int index ) ;
+
 
 protected:
-    QLabel *implLabel;
-    MyDoubInput *implInput;
-    QLabel *backLabel;
-    MyDoubInput *backInput;
-    QLabel *weightLabel;
-    QComboBox *weightBox;
-    QLabel *methodLabel;
-    QComboBox *methodBox;
-    QLabel *pdeLabel;
-    QComboBox *pdeBox;
+        QLabel *implLabel;
+        MyDoubInput *implInput;
+        QLabel *backLabel;
+        MyDoubInput *backInput;
+        QLabel *weightLabel;
+        QComboBox *weightBox;
+        QLabel *methodLabel;
+        QComboBox *methodBox;
+        QLabel *pdeLabel;
+        QComboBox *pdeBox;
+        QStandardItemModel * methodModel;
 
-    int method;
-    double impl;
-    double beta;
-    double back;
+        int method;
+        double impl;
+        double beta;
+        double back;
 
-    int ntime; // 2 - central Time Implicit, 3 - Adams
+        int ntime; // 2 - central Time Implicit, 3 - Adams
 
-    gsl_fft_real_wavetable * real_g;
-    gsl_fft_halfcomplex_wavetable * hc_g;
-    gsl_fft_real_workspace * work_g;
+        gsl_fft_real_wavetable * real_g;
+        gsl_fft_halfcomplex_wavetable * hc_g;
+        gsl_fft_real_workspace * work_g;
 
-    double **data; // array of pointers to double
-    size_t narrays; // number of data arrays of size N_
-    /* data[0] -> time n+1 data
-     * data[1] -> time n data
-     * data[2] -> time n-1 data
-     * data[3 to 3+nk] -> Runge Kutta stage data
-     */
-    size_t nrk; // number of Runge Kutta Stages
-    size_t dsize; // allocated size of data arrays = N_
-    
-    
-
-    void allocateData(size_t rksize) ;
-    void freeData();
-
-    void lspc();
-    void lspa();
-    void femc();
-    void fema();
-    void rk();
-    void setupTrans();
-    void phaser() ;
-
-    // Butcher Tablue Values for RK integrations
-    double *b_a;// assume lower triangular
-    double *b_b;
-    double *b_c;
-    int nStage;
-    int n_b_k; // for RKF adaptive methods - modified Butcher Tablue size
+        double **data; // array of pointers to double
+        size_t narrays; // number of data arrays of size N_
+        /* data[0] -> time n+1 data
+         * data[1] -> time n data
+         * data[2] -> time n-1 data
+         * data[3 to 3+nk] -> Runge Kutta stage data
+         */
+        size_t nrk; // number of Runge Kutta Stages
+        size_t dsize; // allocated size of data arrays = N_
 
 
-};
+
+        void allocateData(size_t rksize) ;
+        void freeData();
+
+        void lspc();
+        void lspa();
+        void femc();
+        void fema();
+        void rk();
+        void setupTrans();
+        void phaser() ;
+        void solvModel(QString tr, QStandardItem* arg2);
+
+        // Butcher Tablue Values for RK integrations
+        double *b_a;// assume lower triangular
+        double *b_b;
+        double *b_c;
+        int nStage;
+        int n_b_k; // for RKF adaptive methods - modified Butcher Tablue size
+
+
+    };
 
 #endif // LEASTSQRWIDGET2_H

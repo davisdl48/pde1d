@@ -21,6 +21,7 @@
 #include "femwidget.h"
 #include <gsl/gsl_linalg.h>
 #include <iostream>
+
 FEMWidget::FEMWidget(QWidget *parent) : SolvWidget(parent)
 {
     setTitle(tr("Finite Element Method"));
@@ -41,6 +42,7 @@ FEMWidget::FEMWidget(QWidget *parent) : SolvWidget(parent)
     verticalLayout->insertWidget(7,weightBox);
     connect(weightBox,SIGNAL(activated(int)),this,SLOT(setBasis(int)));
     setBasis(0);
+  unstable = false;
 }
 
 FEMWidget::FEMWidget ( const FEMWidget& other )
@@ -101,6 +103,7 @@ void FEMWidget::step ( const size_t nStep )
     double ufun;
     double tt,six;
     double tf,eith;
+    if(unstable) return;
     b = 1-a;
     if(cosBas) {
         //Cosine Bases
@@ -137,6 +140,7 @@ void FEMWidget::step ( const size_t nStep )
         gsl_linalg_solve_cyc_tridiag (DIAG,E,F,B,X);
         for(size_t i=0; i<N_; i++) {
             U_[i] = gsl_vector_get(X,i);
+	    if(U_[i] > 1e16) unstable = true;
             //std::cout << X_[i] << '\t' << U_[i] << std::endl;
         }
         //std::cout << std::endl << std::endl;
@@ -171,5 +175,8 @@ void FEMWidget::setSize ( const size_t size )
     B = gsl_vector_alloc (N_);
     X = gsl_vector_alloc (N_);
     initSin(cycles);
+}
+bool FEMWidget::canSolve(int equ) {
+    return (equ == 0);
 }
 

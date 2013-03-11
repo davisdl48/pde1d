@@ -40,6 +40,7 @@ public:
     double getImpl() ;
     virtual void step(size_t nStep=1);
     virtual void setSize(const size_t value);
+    bool canSolve(int equ) ;
     
 public slots:
   void setImpl(double value = 0.0) ;

@@ -46,6 +46,8 @@ bool Controls::operator== ( const Controls& other ) const
 {
 return this == &other;
 }
+
+
 void Controls::setupUi() {
     if (objectName().isEmpty())
         setObjectName(QString::fromUtf8("Controls"));
@@ -55,20 +57,20 @@ void Controls::setupUi() {
     dockWidgetContents->setObjectName(QString::fromUtf8("dockWidgetContents"));
     verticalLayout = new QVBoxLayout(dockWidgetContents);
     verticalLayout->setObjectName(QString::fromUtf8("verticalLayout"));
-    pdeLable = new QLabel(tr("PDE"),dockWidgetContents);
-    pdeLable->setObjectName(QString::fromUtf8("pdeLable"));
+    pdeLabel = new QLabel(tr("PDE"),dockWidgetContents);
+    pdeLabel->setObjectName(QString::fromUtf8("pdeLabel"));
 
-    verticalLayout->addWidget(pdeLable);
+    verticalLayout->addWidget(pdeLabel);
 
     pdeBox = new QComboBox(dockWidgetContents);
     pdeBox->setObjectName(QString::fromUtf8("pdeBox"));
 
     verticalLayout->addWidget(pdeBox);
 
-    solveLabel = new QLabel(dockWidgetContents);
-    solveLabel->setObjectName(QString::fromUtf8("solveLabel"));
+    //solveLabel = new QLabel(dockWidgetContents);
+    //solveLabel->setObjectName(QString::fromUtf8("solveLabel"));
 
-    verticalLayout->addWidget(solveLabel);
+    //verticalLayout->addWidget(solveLabel);
 
     addSolvCombo = new QComboBox(dockWidgetContents);
     addSolvCombo->setObjectName(QString::fromUtf8("addSolvCombo"));
@@ -214,7 +216,7 @@ void Controls::setupUi() {
 
     setWidget(dockWidgetContents);
 #ifndef QT_NO_SHORTCUT
-    solveLabel->setBuddy(addSolvCombo);
+    //solveLabel->setBuddy(addSolvCombo);
     sizeLabel->setBuddy(intNumberOfPoints);
     cyclesLabel->setBuddy(cyclesInput);
     cflLabel->setBuddy(cflInput);
@@ -231,8 +233,8 @@ void Controls::setupUi() {
 
 void Controls::retranslateUi() {
     setWindowTitle(QApplication::translate("Controls", "Controls", 0, QApplication::UnicodeUTF8));
-    pdeLable->setText(QApplication::translate("Controls", "PDE", 0, QApplication::UnicodeUTF8));
-    solveLabel->setText(QApplication::translate("Controls", "Add Solver", 0, QApplication::UnicodeUTF8));
+    pdeLabel->setText(QApplication::translate("Controls", "PDE", 0, QApplication::UnicodeUTF8));
+    //solveLabel->setText(QApplication::translate("Controls", "Add Solver", 0, QApplication::UnicodeUTF8));
     sizeLabel->setText(QApplication::translate("Controls", "Number of Points", 0, QApplication::UnicodeUTF8));
     //intNumberOfPoints->setLabel(QString());
     cyclesLabel->setText(QApplication::translate("Controls", "Number of Cycles", 0, QApplication::UnicodeUTF8));

@@ -23,21 +23,30 @@
 #include <gsl/gsl_blas.h>
 #include <cmath>
 
+const bool pdeSolvers[4][9] =  {
+                   {true, false, true, false, true, true, true, true, true},
+                   {true, false, true, false, true, true, true, true, true},
+                   {false, false, false, false, false, false, false, false, false},
+                   {false, false, false, false, false, false, false, false, false} };
+		   
 SpecWidget::SpecWidget ( QWidget* parent ) : SolvWidget(parent)
 {   int iwid = 4;
     setTitle(tr("Spectral FFT Method"));
 
     methodLabel = new QLabel ( tr ( "Method" ) );
     methodBox = new QComboBox ( this );
-    methodBox->addItem( tr("LSP - Central time"));
-    methodBox->addItem( tr("LSP - Adams"));
-    methodBox->addItem( tr("FEM - Central time"));
-    methodBox->addItem( tr("FEM - Adams"));
-    methodBox->addItem( tr("RK-Mid Pt"));
-    methodBox->addItem( tr("RK-Trap"));
-    methodBox->addItem( tr("RK4"));
-    methodBox->addItem( tr("Arb-RK4"));
-    methodBox->addItem( tr("Phaser"));
+    methodModel = new QStandardItemModel(this);
+    methodBox->setModel(methodModel);
+    methodModel->appendRow( new QStandardItem ( tr("LSP - Cent. time") )); // (0)
+    methodModel->appendRow( new QStandardItem ( tr("LSP - Adams") ));      // (1)
+    methodModel->appendRow( new QStandardItem ( tr("FEM - Cent. time") )); // (2)
+    methodModel->appendRow( new QStandardItem ( tr("FEM - Adams") ));      // (3)
+    methodModel->appendRow( new QStandardItem ( tr("RK-Mid Pt") ));        // (4)
+    methodModel->appendRow( new QStandardItem ( tr("RK-Trap") ));          // (5)
+    methodModel->appendRow( new QStandardItem ( tr("RK4") ));              // (6)
+    methodModel->appendRow( new QStandardItem ( tr("Arb-RK4") ));          // (7)
+    methodModel->appendRow( new QStandardItem ( tr("Phaser") ));           // (8)
+    
     connect ( methodBox, SIGNAL( activated(int) ), this, SLOT( setMethod(int) ) );
     verticalLayout->insertWidget ( iwid++, methodLabel );
     verticalLayout->insertWidget ( iwid++, methodBox );
@@ -71,8 +80,9 @@ SpecWidget::SpecWidget ( QWidget* parent ) : SolvWidget(parent)
     narrays=0;
     nStage = 0;
     method=-1;
-    setMethod(2);
+    setMethod(8);
     setImplicit(0.5);
+  unstable = false;
     //set_default_options(&options);
 }
 
@@ -131,6 +141,7 @@ void SpecWidget::setSize ( const size_t value )
 void SpecWidget::step ( const size_t nStep )
 {
     double temp;
+    if(unstable) return;
     if(totCFL == N_ / 2.0 && ntime == 3) {
         totCFL -= CFL;
         getIdeal();
@@ -190,7 +201,10 @@ void SpecWidget::step ( const size_t nStep )
 
 
         // Update U_
-        for( size_t nn=0; nn<N_; nn++) U_[nn] = data[0][nn];
+        for( size_t nn=0; nn<N_; nn++) {
+	  U_[nn] = data[0][nn];
+	  if(U_[nn] > 1e16) unstable = true;
+	}
 
         cStep++;
         totCFL += CFL;
@@ -231,6 +245,8 @@ void SpecWidget::setMethod(int index) {
             beta = 0.5;
             back = 0.0;
         }
+        implInput->setEnabled(true);
+        backInput->setEnabled(true);
         break;
         setTitle( tr("Spectral - LSP - Adams"));
         ntime=3;
@@ -239,6 +255,8 @@ void SpecWidget::setMethod(int index) {
             beta = 2.0/3;
             back = -1.0/12;
         }
+        implInput->setEnabled(true);
+        backInput->setEnabled(true);
         break;
     case 2:
     case 3:
@@ -248,6 +266,8 @@ void SpecWidget::setMethod(int index) {
             beta = 0.5;
             back = 0.0;
         }
+        implInput->setEnabled(true);
+        backInput->setEnabled(true);
         break;
         setTitle( tr("Spectral - FEM - Adams"));
         ntime=3;
@@ -256,6 +276,8 @@ void SpecWidget::setMethod(int index) {
             beta = 2.0/3;
             back = -1.0/12;
         }
+        implInput->setEnabled(true);
+        backInput->setEnabled(true);
         break;
     case 4:// Mid-Point
 //	y1 = y0 + h f( y0+h/2 f(y0))
@@ -268,6 +290,8 @@ void SpecWidget::setMethod(int index) {
         b_a[nStage]=0.5;
         b_b[1]=1.0;
         b_c[1]=0.5;
+        implInput->setEnabled(false);
+        backInput->setEnabled(false);
         break;
     case 5: // Trapezoid
         //y1=y0+h/2f(y0) + h/2 f(y0+h f(y0))
@@ -281,6 +305,8 @@ void SpecWidget::setMethod(int index) {
         b_b[0]=0.5;
         b_b[1]=0.5;
         b_c[1]=1.0;
+        implInput->setEnabled(false);
+        backInput->setEnabled(false);
 
         break;
     case 6: // RK4
@@ -308,6 +334,8 @@ void SpecWidget::setMethod(int index) {
         b_c[1]=0.5;
         b_c[2]=0.5;
         b_c[3]=1;
+        implInput->setEnabled(false);
+        backInput->setEnabled(false);
         break;
     case 7: // Arb-RK-4
         /*
@@ -331,9 +359,13 @@ void SpecWidget::setMethod(int index) {
         b_c[1]=0.25;
         b_c[2]=1.0/3.0;
         b_c[3]=0.5;
+        implInput->setEnabled(false);
+        backInput->setEnabled(false);
         break;
     case 8:
         setTitle( tr("Phaser"));
+        implInput->setEnabled(false);
+        backInput->setEnabled(false);
         break;
     }
     implInput->setValue(impl);
@@ -508,6 +540,7 @@ void SpecWidget::initSin(const double value) {
     for ( size_t i = 0; i < N_; i++ ) {
         U_[i] = Ideal_[i];
     }
+    unstable = false;
 }
 
 double* SpecWidget::getU() {
@@ -622,3 +655,33 @@ void SpecWidget::phaser() {
     gsl_fft_halfcomplex_inverse (data[0], 1, N_, hc_g, work_g);
 }
 
+
+void SpecWidget::setEquation(int value) {
+    equation=value;
+    for( int i=0; i<9; i++ ) {
+        methodModel->item(i)->setEnabled(pdeSolvers[equation][i]);
+    }
+    switch(value) {
+    default:
+    case 0:
+        d_=0.0;
+        e_=1.0;
+        break;
+    case 1:
+        d_=1.0;
+        e_=0.0;
+        break;
+    case 2:
+        burg=true;
+        e_=1.0;
+        d_=0.0;
+        break;
+    case 3:
+        burg=true;
+        e_=1.0;
+        d_=1.0;
+    }
+}
+bool SpecWidget::canSolve(int equ) {
+    return pdeSolvers[equ][method];
+}

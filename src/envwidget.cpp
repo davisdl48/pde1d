@@ -23,17 +23,24 @@
 #include <gsl/gsl_blas.h>
 #include <cmath>
 
+const bool pdeSolvers[4][5] =  {
+                   {true, false, true, false, true},
+                   {false, false, false, false, false},
+                   {false, false, false, false, false},
+                   {false, false, false, false, false} };
+		   
 EnvWidget::EnvWidget ( QWidget* parent ) : SolvWidget(parent)
 {   int iwid = 4;
     setTitle(tr("Envelope Method"));
 
     methodLabel = new QLabel ( tr ( "Method" ) );
-    methodBox = new QComboBox ( this );
-    methodBox->addItem( tr("LSP - Central time"));
-    methodBox->addItem( tr("LSP - Adams"));
-    methodBox->addItem( tr("FEM - Central time"));
-    methodBox->addItem( tr("FEM - Adams"));
-    methodBox->addItem( tr("Runge Kutta"));
+    methodBox = new QComboBox ( this );   
+    methodBox->setModel(methodModel);
+    methodModel->appendRow( new QStandardItem ( tr("LSP - Cent. time") )); // (0)
+    methodModel->appendRow( new QStandardItem ( tr("LSP - Adams") ));      // (1)
+    methodModel->appendRow( new QStandardItem ( tr("FEM - Cent. time") )); // (2)
+    methodModel->appendRow( new QStandardItem ( tr("FEM - Adams") ));      // (3)
+    methodModel->appendRow( new QStandardItem ( tr("Runge Kutta") ));      // (4)
     connect ( methodBox, SIGNAL( activated(int) ), this, SLOT( setMethod(int) ) );
     verticalLayout->insertWidget ( iwid++, methodLabel );
     verticalLayout->insertWidget ( iwid++, methodBox );
@@ -73,6 +80,7 @@ EnvWidget::EnvWidget ( QWidget* parent ) : SolvWidget(parent)
     method=-1;
     setBasis(3);
     setMethod(2);
+  unstable = false;
     //set_default_options(&options);
 }
 
@@ -243,6 +251,7 @@ void EnvWidget::step ( const size_t nStep )
         }
         totCFL = N_/2.0;
     }
+    if(unstable) return;
     int ubstart=0;
     bool printinout=true;
     for ( size_t ns = 0; ns < nStep; ns++ ) {
@@ -294,6 +303,7 @@ void EnvWidget::step ( const size_t nStep )
             if( istart < 0 ) istart= N_+istart;
             for( size_t i=0; i<winwid; i++) {
                 Usum[istart] += gsl_vector_get(UVec,i);
+		if(Usum[istart] > 1e16) unstable = true;
                 istart++;
                 if(istart == N_) istart = 0;
             }
@@ -1000,6 +1010,7 @@ void EnvWidget::initSin(const double value) {
     for ( size_t i = 0; i < N_; i++ ) {
         U_[i] = Ideal_[i];
     }
+    unstable = false;
 }
 
 double* EnvWidget::getU() {
@@ -1651,5 +1662,8 @@ void EnvWidget::setupTrans(int size) {
     }
     gsl_matrix_memcpy(Mforw,Mback);
     gsl_linalg_LU_decomp(Mforw,permut,&signum);
+}
+bool EnvWidget::canSolve(int equ) {
+    return pdeSolvers[equ][method];
 }
 

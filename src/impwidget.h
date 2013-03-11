@@ -47,6 +47,7 @@ public:
     const double getImplicit();
     virtual void initSin ( const double value );
     virtual double* getU();
+    bool canSolve(int equ) ;
     
 public slots:
     void setImplicit ( double value = 5/12.0 ) ;

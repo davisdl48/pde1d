@@ -42,6 +42,7 @@ public:
     virtual void setSize ( const size_t size = 100 );
     virtual void setCFL ( const double value = 1.0 ) ;
     const double getImplicit();
+    bool canSolve(int equ) ;
 
 public slots:
     void setBasis ( int index );

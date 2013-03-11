@@ -6,9 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>745</width>
-    <height>666</height>
+    <width>614</width>
+    <height>508</height>
    </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+    <horstretch>1</horstretch>
+    <verstretch>1</verstretch>
+   </sizepolicy>
   </property>
   <property name="windowTitle">
    <string>LinearWaveSimulator</string>
@@ -32,8 +38,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>745</width>
-     <height>20</height>
+     <width>614</width>
+     <height>26</height>
     </rect>
    </property>
   </widget>

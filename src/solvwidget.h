@@ -58,7 +58,7 @@ public:
     virtual void setCFL ( const double value = 1.0 );
     const double getCFL();
     void setSpeed ( const double value = 1.0 );
-    const double getSpeed() ;
+    const double getSpeed();
 
     double * getX();
     virtual double * getU();
@@ -68,7 +68,13 @@ public:
     int getCurrentStep();
     double getCycles();
     double getTravel();
-    bool getBurg() ;
+    
+
+    virtual bool canSolve(int equ);
+    bool isUnstable() ;
+    
+    bool getBurg();
+   
 
     int getId() ;
     void setId ( int value ) ;
@@ -84,14 +90,14 @@ public:
     QLabel *plotColorLabel;
     MyColorButton *plotColor;
     QSpacerItem *verticalSpacer;
-   void setupUi();
+    void setupUi();
    
+    virtual void setEquation( int index) ;
 
 public slots:
     void setColor ( QColor color ) ;
     void setTitle ( QString title ) ;
     
-    void setEquation( int index) ;
     void setViscosity( double value = 0.0 ) ;
 
 signals:
@@ -126,6 +132,8 @@ protected:
     int id;
     bool burg;
     bool dirty;
+    int equation;
+    bool unstable;
 };
 
 #endif // EULEREXWIDGET_H

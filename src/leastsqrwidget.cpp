@@ -43,6 +43,7 @@ LeastSqrWidget::LeastSqrWidget ( QWidget *parent ) : SolvWidget ( parent )
     setColor ( Qt::blue );
     setAlpha (0.5);
     setBasis(0);
+  unstable = false;
 }
 
 LeastSqrWidget::LeastSqrWidget ( const LeastSqrWidget& other )
@@ -131,6 +132,7 @@ void LeastSqrWidget::step ( size_t nStep )
     double f00, f01, um1, u00, up1;
     double b2, ab, p2;
     double ufun;
+    if(unstable) return;
     //gnuplot_ctrl * h1;
     //h1 = gnuplot_init();
     b2 = b * b * CFL * CFL;
@@ -165,6 +167,7 @@ void LeastSqrWidget::step ( size_t nStep )
         gsl_linalg_solve_symm_cyc_tridiag ( DIAG, E, B, X );
         for ( size_t i = 0; i < N_; i++ ) {
             U_[i] = gsl_vector_get ( X, i );
+	    if(U_[i] > 1e16) unstable = true;
             //std::cout << X_[i] << '\t' << U_[i] << std::endl;
         }
         //std::cout << std::endl << std::endl;
@@ -178,4 +181,7 @@ void LeastSqrWidget::step ( size_t nStep )
   fout << std::endl << std::endl;
   */
     //gnuplot_close(h1);
+}
+bool LeastSqrWidget::canSolve(int equ) {
+    return (equ == 0);
 }

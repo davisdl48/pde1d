@@ -84,6 +84,7 @@ ImpWidget::ImpWidget ( QWidget* parent ) : SolvWidget(parent)
     method=-1;
     setBasis(0);
     setMethod(0);
+  unstable = false;
     //set_default_options(&options);
 }
 
@@ -261,6 +262,7 @@ void ImpWidget::step ( const size_t nStep )
         }
         totCFL = N_/2.0;
     }
+    if(unstable) return;
     if( dirty ) {
         if(aexist) {
             Destroy_CompCol_Matrix(&A);
@@ -356,11 +358,13 @@ void ImpWidget::step ( const size_t nStep )
                 for ( size_t i = 0; i <  N_ ; i++ ) {
                     Ub[i] = Utran[i];
                     Utran[i]=rhsx[i];
+		    if(Utran[i] > 1e16) unstable = true;
                 }
             } else {
                 for ( size_t i = 0; i <  N_ ; i++ ) {
                     Ub[i] = U_[i];
                     U_[i]=rhsx[i];
+		    if(U_[i] > 1e16) unstable = true;
                 }
             }
         } else {
@@ -1249,6 +1253,7 @@ void ImpWidget::initSin(const double value) {
         U_[i] = Ideal_[i];
     }
     if(transform) forwardTrans(U_,Utran);
+    unstable = false;
 }
 
 double* ImpWidget::getU() {
@@ -1352,4 +1357,7 @@ void ImpWidget::setupTrans() {
 
 
     }
+}
+bool ImpWidget::canSolve(int equ) {
+    return (equ == 0);
 }

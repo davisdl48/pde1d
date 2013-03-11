@@ -56,9 +56,9 @@ public:
 
     QWidget *dockWidgetContents;
     QVBoxLayout *verticalLayout;
-    QLabel *pdeLable;
+    QLabel *pdeLabel;
     QComboBox *pdeBox;
-    QLabel *solveLabel;
+    //QLabel *solveLabel;
     QComboBox *addSolvCombo;
     QLabel *sizeLabel;
     MyIntInput *intNumberOfPoints;

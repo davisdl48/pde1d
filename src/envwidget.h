@@ -25,6 +25,7 @@
 #include "myinputs.h"
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_permutation.h>
+#include <QtGui/QStandardItemModel>
 //#include "../superlu/SRC/slu_ddefs.h"
 
 class EnvWidget : public SolvWidget
@@ -45,7 +46,8 @@ public:
     const double getImplicit();
     virtual void initSin ( const double value );
     virtual double* getU();
-    
+    bool canSolve(int equ);
+
 public slots:
     void setImplicit ( double value = 5/12.0 ) ;
     void setBackward ( double value = -1/12.0 );
@@ -62,6 +64,7 @@ protected:
     QComboBox *weightBox;
     QLabel *methodLabel;
     QComboBox *methodBox;
+    QStandardItemModel * methodModel;
 
     int method;
     double impl;
@@ -69,38 +72,38 @@ protected:
     double back;
     int ibase;
     bool dirty; // value to check for changes
-    
+
     int ipad; // padding to the sides of the window
     int winwid; // initial window width
-    int winoff; // offset step between windows 
-    double * weights; // window weights 
-    
+    int winoff; // offset step between windows
+    double * weights; // window weights
+
     size_t nbas; // number of points in the transform and number of basis functions
-                 // nbas == winwid + 2*ipad
+    // nbas == winwid + 2*ipad
     int ntime; // 2 - central Time Implicit, 3 - Adams
 
-    double *Ub; // U at n-1 for adams method or Utransform at n-1 
+    double *Ub; // U at n-1 for adams method or Utransform at n-1
     size_t nub;            // Ub size = N_/winoff*nbas
     double *Usum;
     gsl_vector_view UbView;
-    
+
     gsl_vector * TranVec; // nbas transform values within envelope
     gsl_vector * UVec;  // Physical Space solution of envelope
     gsl_vector * BVec;  // Right Side
     gsl_vector * CVec;  // far right side for Adams method
-    
+
     gsl_matrix * Left; // Implicit part of pde operator - LU factored
     gsl_permutation * lpermut;
     gsl_matrix * Right;  // Right side
     gsl_matrix * FarRight;  // Right side operator on Ub
-    
+
     gsl_matrix * Mforw; // forward transform matrix = LU of Mback
     gsl_matrix * Mback; // reverse transform matrix
-    
-   
+
+
     gsl_permutation * permut;
     int signum;
-    
+
     void updateCoef( int value );
     void lspc();
     void lspa();
@@ -109,7 +112,7 @@ protected:
     void rk();
     void setupTrans(int size) ;
     void allocate_gsl(int size);
-    
+
 };
 
 #endif // LEASTSQRWIDGET2_H
