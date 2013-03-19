@@ -25,7 +25,7 @@
 SolvWidget::SolvWidget ( QWidget *parent ) :  QDockWidget ( parent )
 {
     setupUi ( );
-    //connect ( plotColor, SIGNAL ( activated ( QColor ) ), this, SLOT ( setColor ( QColor ) ) ) ;
+    connect ( plotColor, SIGNAL ( valueChanged ( QColor ) ), this, SLOT ( setColor ( QColor ) ) ) ;
     connect ( plotNameEdit, SIGNAL ( textEdited ( QString ) ), this, SLOT ( setTitle ( QString ) ) );
     N_ = 0;
     dt = 0.0;
@@ -252,8 +252,10 @@ void SolvWidget::setEquation(int index) {
 }
 
 void SolvWidget::setViscosity(double value) {
+  if(value == visc_) return;
     visc_=value;
     dirty=true;
+  
     
 }
 void SolvWidget::resize(int value) {
@@ -315,8 +317,7 @@ void SolvWidget::setupUi() {
 
     verticalSpacer = new QSpacerItem(240, 175, QSizePolicy::Minimum, QSizePolicy::Expanding);
 
-    verticalLayout->addItem(verticalSpacer);
-    
+    verticalLayout->addItem(verticalSpacer); 
 
     setWidget(dockWidgetContents);
     
@@ -335,4 +336,8 @@ bool SolvWidget::canSolve(int equ) {
 
 bool SolvWidget::isUnstable() {
     return unstable;
+}
+
+bool SolvWidget::isOK() {
+    return !unstable&&canSolve(equation);
 }

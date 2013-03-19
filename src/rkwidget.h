@@ -23,7 +23,8 @@
 
 #include "solvwidget.h"
 #include "myinputs.h"
-#include <superlu/slu_ddefs.h>
+#include <slu_ddefs.h>
+#include <supermatrix.h>
 //#include "../superlu/SRC/slu_ddefs.h"
 
 class RKWidget : public SolvWidget

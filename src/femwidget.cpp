@@ -28,7 +28,6 @@ FEMWidget::FEMWidget(QWidget *parent) : SolvWidget(parent)
     plotNameEdit->setText(title);
     setColor( Qt::magenta );
     alphaLabel = new QLabel(QString::fromLocal8Bit("Alpha"));
-    setAlpha(0.5);
     alphaInput = new MyDoubInput(a,this,0.0,1.0,0.01,6);
     verticalLayout->insertWidget(4,alphaLabel);
     verticalLayout->insertWidget(5,alphaInput);
@@ -41,6 +40,8 @@ FEMWidget::FEMWidget(QWidget *parent) : SolvWidget(parent)
     verticalLayout->insertWidget(6,weightLabel);
     verticalLayout->insertWidget(7,weightBox);
     connect(weightBox,SIGNAL(activated(int)),this,SLOT(setBasis(int)));
+    a=-1;
+    setAlpha(0.5);
     setBasis(0);
   unstable = false;
 }
@@ -73,7 +74,11 @@ bool FEMWidget::operator== ( const FEMWidget& other ) const
 }
 
 void FEMWidget::setAlpha(double value) {
-    a=value;
+  
+    b = 1 - value;
+    if( value == a) return;
+    a = value;
+    alphaInput->setValue(a);
 }
 
 const double FEMWidget::getAlpha()

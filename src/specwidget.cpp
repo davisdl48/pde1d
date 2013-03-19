@@ -215,12 +215,14 @@ void SpecWidget::setImplicit(double value) {
     if(value == impl) return;
     impl = value;
     beta = 1 - impl - back;
+    implInput->setValue(impl);
 }
 
 void SpecWidget::setBackward(double value) {
     if(value == back) return;
     back = value;
     beta = 1 -impl - back;
+    backInput->setValue(back);
 }
 
 void SpecWidget::setCFL(const double value) {

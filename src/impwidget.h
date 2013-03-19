@@ -26,6 +26,7 @@
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_permutation.h>
 #include <slu_ddefs.h>
+#include <supermatrix.h>
 //#include <superlu/slu_ddefs.h>
 //#include "../superlu/SRC/slu_ddefs.h"
 

@@ -161,5 +161,6 @@ void MyColorButton::setColor() {
         //setText(color.name());
         setPalette(QPalette(color));
         setAutoFillBackground(true);
+	emit valueChanged(color);
     }
 }

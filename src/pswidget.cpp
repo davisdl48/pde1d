@@ -191,6 +191,7 @@ void PSWidget::setImplicit(double value) {
     if(value == impl) return;
     impl = value;
     beta = 1 - impl - back;
+    implInput->setValue(impl);
 }
 
 void PSWidget::setBackward(double value) {

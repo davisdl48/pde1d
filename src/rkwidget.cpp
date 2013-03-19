@@ -20,6 +20,7 @@
 
 #include "rkwidget.h"
 #include <iostream>
+#include <cmath>
 
 RKWidget::RKWidget ( QWidget* parent ) : SolvWidget(parent)
 {   int iwid = 4;
@@ -34,6 +35,8 @@ RKWidget::RKWidget ( QWidget* parent ) : SolvWidget(parent)
     methodBox->addItem( tr("Trapezoid"));
     methodBox->addItem( tr("RK4"));
     methodBox->addItem( tr("Arb-RK-4"));
+    methodBox->addItem( tr("RKG-4"));
+    methodBox->addItem( tr("TVD-RK-3"));
     connect ( methodBox, SIGNAL( activated(int) ), this, SLOT( setMethod(int) ) );
     verticalLayout->insertWidget ( iwid++, methodLabel );
     verticalLayout->insertWidget ( iwid++, methodBox );
@@ -70,7 +73,7 @@ RKWidget::RKWidget ( QWidget* parent ) : SolvWidget(parent)
     setBasis(0);
     method=-1;
     setMethod(0);
-  unstable = false;
+    unstable = false;
     //set_default_options(&options);
 }
 
@@ -802,20 +805,12 @@ void RKWidget::fillB(int stg) {
 
 void RKWidget::setMethod(int index) {
     if( index == method ) return;
+    double sr;
     method = index;
-    /*
-    * k_i = f(Y_i)
-    * Y_i = y_0 + h sum a_ij k_j
-    * y_1 = y_0 + h sum b_i k_i
-    *
-    b_a = matrix(SR,[[0,0,0,0],[1/2,0,0,0],[0,1/2,0,0],[0,0,1,0]])
-    b_b = vector(QQ,[1/6,1/3,1/3,1/6])
-    b_c = vector(QQ,[0,1/2,1/2,1])
-    b_k = vector(SR,[0,0,0,0])
-    nStage = 4
-
-    */
+   
     switch(method) {
+      default:
+        method = 0;
     case 0: // Mid-Point
 //	y1 = y0 + h f( y0+h/2 f(y0))
 //	nStage = 2
@@ -891,8 +886,60 @@ void RKWidget::setMethod(int index) {
         b_c[2]=1.0/3.0;
         b_c[3]=0.5;
         break;
-    default:
-        setMethod(0);
+    case 4: // RKG-4
+        /*
+        * k_i = f(Y_i)
+        * Y_i = y_0 + h sum a_ij k_j
+        * y_1 = y_0 + h sum b_i k_i
+        *
+        b_a = matrix(SR,[[0,0,0,0],[1/2,0,0,0],[sr-1/2,1-sr,0,0],[0,-sr,1+sr,0]])
+        b_b = vector(QQ,[1/6,(1-sr)/3,(1+sr)/3,1/6])
+        b_c = vector(QQ,[0,1/2,1/2,1])
+        b_k = vector(SR,[0,0,0,0])
+        nStage = 4
+
+        */
+	sr=1/sqrt(2.0);
+        setTitle( tr("RKG-4"));
+        setNStage(4);
+        b_a[4]=0.5;
+	b_a[8]= sr-0.5;
+        b_a[9]=1-sr;
+	b_a[13]=-sr;
+        b_a[14]=1+sr;
+	b_b[0]=1./6.;
+	b_b[1]=(1-sr)/3.;
+	b_b[2]=(1+sr)/3.;
+        b_b[3]=1./6.;
+        b_c[1]=0.5;
+        b_c[2]=0.5;
+        b_c[3]=1;
+        break; 
+    case 5: // TVD-RK-3
+        /*
+        * k_i = f(Y_i)
+        * Y_i = y_0 + h sum a_ij k_j
+        * y_1 = y_0 + h sum b_i k_i
+        *
+        b_a = matrix(SR,[[0,0,0],[1,0,0],[1/4,1/4,0])
+        b_b = vector(QQ,[1/6,1/6,2/3])
+        b_c = vector(QQ,[0,1,1/2])
+        b_k = vector(SR,[0,0,0])
+        nStage = 3
+        */
+        setTitle( tr("TVD-RK-3"));
+        setNStage(3);
+        b_a[3]=1.0;
+	b_a[6]= 0.25;
+        b_a[7]= 0.25;
+	b_b[0]=1./6.;
+	b_b[1]=1./6.;
+	b_b[2]=2./3.;
+        b_c[1]=0;
+        b_c[2]=1;
+        b_c[3]=0.5;
+        break; 
+    
     }
 
 }

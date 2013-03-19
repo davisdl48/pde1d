@@ -381,6 +381,7 @@ void ImpWidget::setImplicit(double value) {
     dirty = true;
     impl = value;
     beta = 1 - impl - back;
+    implInput->setValue(impl);
 }
 
 void ImpWidget::setBackward(double value) {
@@ -388,6 +389,7 @@ void ImpWidget::setBackward(double value) {
     dirty = true;
     back = value;
     beta = 1 -impl - back;
+    backInput->setValue(back);
 }
 
 void ImpWidget::updateCoef(int value) {

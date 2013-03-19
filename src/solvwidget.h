@@ -72,6 +72,7 @@ public:
 
     virtual bool canSolve(int equ);
     bool isUnstable() ;
+    bool isOK();
     
     bool getBurg();
    

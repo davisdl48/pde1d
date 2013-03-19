@@ -125,7 +125,10 @@ pde1d::pde1d() : QMainWindow(), Ui_MainWindow()
     stop = 100;
     step = 1;
     equation = 0;
-    visc = 0.001;
+    CFL=-1;
+    setCFL(1.0);
+    visc = -1.0;
+    setViscosity(0.001);
 }
 
 pde1d::~pde1d()
@@ -143,7 +146,7 @@ void pde1d::replot ( const char * title )
     QwtPlotCurve *c1;
     if( equation == 1 && (cycles - floor(cycles) < 1e-5) )  {
         for ( size_t i = 0; i < eeWidgets.size();  i++ ) {
-            if( !(eeWidgets[i]->isUnstable()) ) {
+            if( eeWidgets[i]->isOK() ) {
                 c1 = new QwtPlotCurve ( "Ideal Values" );
                 c1->setSamples ( eeWidgets[i]->getX(), eeWidgets[i]->getIdeal(), N_ );
                 c1->attach ( qwtPlot );
@@ -152,7 +155,7 @@ void pde1d::replot ( const char * title )
         }
     } else if(equation == 0 ) {
         for ( size_t i = 0; i < eeWidgets.size();  i++ ) {
-            if( !(eeWidgets[i]->isUnstable()) ) {
+            if( eeWidgets[i]->isOK()  ) {
                 c1 = new QwtPlotCurve ( "Ideal Values" );
                 c1->setSamples ( eeWidgets[i]->getX(), eeWidgets[i]->getIdeal(), N_ );
                 c1->attach ( qwtPlot );
@@ -160,12 +163,10 @@ void pde1d::replot ( const char * title )
             }
         }
     }
-
-
     for ( size_t i = 0; i < eeWidgets.size();  i++ ) {
         if( eeWidgets[i]->canSolve(equation) ) {
             if( eeWidgets[i]->isUnstable() ) {
-                c1 = new QwtPlotCurve ( "**"+eeWidgets[i]->getTitle()+"-Unst" );
+                c1 = new QwtPlotCurve ( eeWidgets[i]->getTitle()+"-U*" );
                 c1->setSamples ( xu, uu, 1 );
                 c1->setPen ( QPen ( QBrush ( eeWidgets[i]->getColor() ), 1.5, Qt::DashLine ) );
             } else {
@@ -339,13 +340,13 @@ void pde1d::setCycles ( double value )
 
 void pde1d::setCFL ( double value )
 {
-    std::cout << "pde1d::setCFL( " << value << " )\n";
     if ( value == CFL ) return;
     CFL = value;
     if ( eeWidgets.empty() ) return;
     for ( size_t i = 0; i < eeWidgets.size(); i++ ) {
         eeWidgets[i]->setCFL ( CFL );
     }
+    control->cflInput->setValue(CFL);
 }
 
 void pde1d::setStop ( int value )
@@ -417,7 +418,7 @@ void pde1d::savePlot ( )
     QString form = "svg";
     QSizeF qs(161.80,100.0);
     QwtPlotRenderer rend(this);
-    if ( pfile.contains ( QRegExp ( "//.(pdf|svg|ps|eps)$",Qt::CaseInsensitive  ) ) ) {
+    if ( pfile.contains ( QRegExp ( "//.(pdf|svg|ps)$",Qt::CaseInsensitive  ) ) ) {
         ipt = pfile.lastIndexOf(".");
         ipt = pfile.size() - ipt -1;
         form = pfile;
@@ -554,6 +555,7 @@ void pde1d::setEquation(int value) {
 }
 
 void pde1d::setViscosity(double value) {
+    if(visc == value ) return;
     visc=value;
     if ( eeWidgets.empty() ) return;
     for ( size_t i = 0; i < eeWidgets.size(); i++ ) {

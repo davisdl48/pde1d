@@ -27,8 +27,6 @@ SimpImpWidget::SimpImpWidget(QWidget *parent): SolvWidget(parent)
 {
     setTitle(tr("Simple Implicit"));
     plotNameEdit->setText(title);
-    impl = 0.5;
-    upwind = 0.0;
     impLabel = new QLabel(QString::fromLocal8Bit("Implicit"));
     impInput = new MyDoubInput(0.5,this,0.0,1.0,0.01,6);
 
@@ -41,7 +39,11 @@ SimpImpWidget::SimpImpWidget(QWidget *parent): SolvWidget(parent)
     verticalLayout->insertWidget(6,upwLabel);
     verticalLayout->insertWidget(7,upwInput);
     setColor( Qt::green );
-  unstable = false;
+    unstable = false;
+    impl = -1; // to prevent auto return
+    setImpl(0.5);
+    upwind = -1; // to prevent auto return
+    setUpwind(0.0);
 
 }
 
@@ -71,12 +73,16 @@ bool SimpImpWidget::operator==(const SimpImpWidget& other) const
 }
 
 void SimpImpWidget::setImpl(double value) {
+    if(impl == value) return;
     impl = value;
+    impInput->setValue(impl);
 
 }
 
 void SimpImpWidget::setUpwind(double value) {
-    upwind = value;
+  if(upwind == value) return;
+  upwind = value;
+  upwInput->setValue(upwind);
 }
 
 void SimpImpWidget::setSize(const size_t value)

@@ -41,6 +41,7 @@ LeastSqrWidget::LeastSqrWidget ( QWidget *parent ) : SolvWidget ( parent )
     verticalLayout->insertWidget ( 7, weightBox );
     connect ( weightBox, SIGNAL ( activated ( int ) ), this, SLOT ( setBasis ( int ) ) );
     setColor ( Qt::blue );
+    a=-1;
     setAlpha (0.5);
     setBasis(0);
   unstable = false;
@@ -73,9 +74,11 @@ bool LeastSqrWidget::operator== ( const LeastSqrWidget& other ) const
 }
 
 void LeastSqrWidget::setAlpha ( double value )
-{
+{ 
+    b = 1 - value;
+    if( value == a) return;
     a = value;
-    b = 1 - a;
+    alphaInput->setValue(a);
 }
 
 const double LeastSqrWidget::getAlpha()
