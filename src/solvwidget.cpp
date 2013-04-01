@@ -27,6 +27,11 @@ SolvWidget::SolvWidget ( QWidget *parent ) :  QDockWidget ( parent )
     setupUi ( );
     connect ( plotColor, SIGNAL ( valueChanged ( QColor ) ), this, SLOT ( setColor ( QColor ) ) ) ;
     connect ( plotNameEdit, SIGNAL ( textEdited ( QString ) ), this, SLOT ( setTitle ( QString ) ) );
+    dataNames.append(tr("X"));
+    dataNames.append(tr("U"));
+    dataNames.append(tr("E")); // convective flux - e.g. c*U or 1/2 U^2
+    dataNames.append(tr("D")); // diffusive flux - e.g. nu*U
+    dataNames.append(tr("Jac")); // Jacobian d(D_x)/dU
     N_ = 0;
     dt = 0.0;
     pi = 4 * atan ( 1.0 );
@@ -45,14 +50,14 @@ SolvWidget::SolvWidget ( const SolvWidget& other )
 
 SolvWidget::~SolvWidget()
 {
-    std::cout << "Delete solve widget\n";
-    if ( N_ != 0 ) {
-        delete[] U_;
-        delete[] X_;
-        delete[] E_;
-	delete[] J_;
-        delete[] D_;
+    //std::cout << "Delete solve widget\n";
+    QHash<QString, double *>::const_iterator iter = data.constBegin();
+    while( iter != data.constEnd()) {
+      std::cout << iter.key().toLocal8Bit().constData() << ":  " << iter.value() << std::endl;
+      delete[] iter.value();
+      iter++;
     }
+    data.clear();
 }
 
 SolvWidget& SolvWidget::operator= ( const SolvWidget& other )
@@ -262,22 +267,29 @@ void SolvWidget::setViscosity(double value) {
 void SolvWidget::resize(int value) {
     if ( value == N_ ) return;
     cStep = 0;
+    QHash<QString, double *>::const_iterator iter = data.constBegin();
+    while( iter != data.constEnd()) {
+      delete[] iter.value();    
+      iter++;
+    }
+    QStringList::const_iterator constIterator;
+    for (constIterator = dataNames.constBegin(); constIterator != dataNames.constEnd();
+            ++constIterator){
+         data.insert(*constIterator, new double[value]);
+    }
+    
+  // temporary for compatablitiy  
     if ( N_ != 0 ) {
-        delete[] U_;
-        delete[] X_;
-        delete[] E_;
-	delete[] J_;
-        delete[] D_;
 	delete[] Ideal_;
-
     }
     N_ = value;
-    U_ = new double[N_];
-    X_ = new double[N_];
-    E_ = new double[N_];
-    J_ = new double[N_];
-    D_ = new double[N_];
     Ideal_ = new double[N_];
+    
+    U_ = data.value(tr("U"),0);
+    X_ = data.value(tr("X"),0);
+    E_ = data.value(tr("E"),0);
+    J_ = data.value(tr("Jac"),0);
+    D_ = data.value(tr("D"),0);
     initSin ( cycles );
 }
 
@@ -345,4 +357,10 @@ double SolvWidget::getLineWidth() {
 }
 void SolvWidget::setLineWidth(double lw) {
     lineWidth=lw;
+}
+QwtPlotCurve* SolvWidget::getCurve(QString value, QString xvalue) {
+    curve->setTitle( title );
+    curve->setSamples ( data.value(value,U_), data.value(xvalue,X_), N_ );
+    // tobe replaced - change pen through gui
+    curve->setPen ( QPen ( QBrush ( plotColor->getValue() ), 1.5, Qt::DashLine ) );
 }
