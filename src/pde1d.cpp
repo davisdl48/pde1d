@@ -61,6 +61,10 @@ pde1d::pde1d() : QMainWindow(), Ui_MainWindow()
     qwtPlot->setAxisScale ( 0, -1.2, 1.2 );
     qwtPlot->setAxisScale ( 2, 0, 6.2831853 );
     qwtPlot->setCanvasBackground ( Qt::white );
+    qwtPlot->setAutoDelete(false);
+    
+    legend = new QwtLegend();
+    qwtPlot->insertLegend ( legend, QwtPlot::BottomLegend );
 
     errTab = new ErrTabDock ( tr ( "Metrics" ), this );
     errTab->setFeatures ( QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable );
@@ -130,6 +134,7 @@ pde1d::pde1d() : QMainWindow(), Ui_MainWindow()
     setCFL(1.0);
     visc = -1.0;
     setViscosity(0.001);
+    
     IdealWidget * iw;
     iw = new IdealWidget(this);
     addIt(iw);
@@ -143,26 +148,16 @@ void pde1d::replot ( const char * title )
     double xu[1] = {0.0};
     double uu[1] = {0.0};
     if ( eeWidgets.empty() ) return;
-
-    qwtPlot->detachItems();
-    qwtPlot->insertLegend ( new QwtLegend(), QwtPlot::BottomLegend );
-
-    QwtPlotCurve *c1;
-
+    std::cout << qwtPlot->autoDelete() << std::endl;
+    //qwtPlot->detachItems();
+    //qwtPlot->insertLegend ( legend, QwtPlot::BottomLegend );
+ 
     for ( size_t i = 0; i < eeWidgets.size();  i++ ) {
         if( eeWidgets[i]->canSolve(equation) ) {
-            if( eeWidgets[i]->isUnstable() ) {
-                c1 = new QwtPlotCurve ( "*"+eeWidgets[i]->getTitle()+"*" );
-                c1->setSamples ( xu, uu, 1 );
-                c1->setPen ( QPen ( QBrush ( eeWidgets[i]->getColor() ), 0.5, Qt::DotLine ) );
-            } else {
-                c1 = new QwtPlotCurve ( eeWidgets[i]->getTitle() );
-                c1->setSamples ( eeWidgets[i]->getX(), eeWidgets[i]->getU(), N );
-                c1->setPen ( QPen ( QBrush ( eeWidgets[i]->getColor() ), 1.5, Qt::DashLine ) );
-            }
-            //c1->pen().setStyle(Qt::DashLine);
-            c1->attach ( qwtPlot );
-        }
+            eeWidgets[i]->getCurve()->attach( qwtPlot );
+        }else{
+	    eeWidgets[i]->getCurve()->detach();
+	}
     }
 
     qwtPlot->setTitle ( title );
@@ -409,7 +404,7 @@ void pde1d::run()
         }
     }
     std::ostringstream s1;
-    s1 << "Cycle " << std::fixed << std::setw ( 10 ) << std::setprecision ( 3 ) << ( eeWidgets[0]->getTravel() - 0.5 );
+    s1 << "Cycle " << std::fixed << std::setw ( 10 ) << std::setprecision ( 3 ) << ( eeWidgets[istab]->getTravel() - 0.5 );
     replot ( s1.str().c_str() );
     QTimer::singleShot ( delay, this, SLOT ( run() ) );
 }
@@ -589,12 +584,14 @@ void pde1d::addIt(SolvWidget* solver) {
     connect ( solver, SIGNAL ( dockClose ( int ) ), this, SLOT ( removeSolver ( int ) ) );
     this->addDockWidget ( Qt::LeftDockWidgetArea, solver );
     this->tabifyDockWidget(control,solver);
+    //solver->getCurve()->attach( qwtPlot );
     qdw = dynamic_cast<QDockWidget *> ( solver );
     if ( qdw == NULL ) {
         delete solver;
         return;
     }
     eeWidgets.push_back ( solver );
+    replot("Initial Conditions");
 }
 
 void pde1d::setDelay(int value) {

@@ -25,10 +25,11 @@
 SolvWidget::SolvWidget ( QWidget *parent ) :  QDockWidget ( parent )
 {
     setupUi ( );
+    curve = new QwtPlotCurve();
     connect ( plotColor, SIGNAL ( valueChanged ( QColor ) ), this, SLOT ( setColor ( QColor ) ) ) ;
     connect ( plotNameEdit, SIGNAL ( textEdited ( QString ) ), this, SLOT ( setTitle ( QString ) ) );
-    dataNames.append(tr("X"));
-    dataNames.append(tr("U"));
+    dataNames.append(tr("X")); // locations
+    dataNames.append(tr("U")); // default dependant variable
     dataNames.append(tr("E")); // convective flux - e.g. c*U or 1/2 U^2
     dataNames.append(tr("D")); // diffusive flux - e.g. nu*U
     dataNames.append(tr("Jac")); // Jacobian d(D_x)/dU
@@ -58,6 +59,7 @@ SolvWidget::~SolvWidget()
       iter++;
     }
     data.clear();
+    curve->detach();
 }
 
 SolvWidget& SolvWidget::operator= ( const SolvWidget& other )
@@ -78,6 +80,10 @@ QColor SolvWidget::getColor()
 
 QString& SolvWidget::getTitle()
 {
+    if(unstable) {
+      QString utitle = "*"+title+"*";
+      return utitle;
+    }
     return title;
 }
 
@@ -290,6 +296,8 @@ void SolvWidget::resize(int value) {
     E_ = data.value(tr("E"),0);
     J_ = data.value(tr("Jac"),0);
     D_ = data.value(tr("D"),0);
+    
+    // End temporary data values 
     initSin ( cycles );
 }
 
@@ -358,9 +366,20 @@ double SolvWidget::getLineWidth() {
 void SolvWidget::setLineWidth(double lw) {
     lineWidth=lw;
 }
-QwtPlotCurve* SolvWidget::getCurve(QString value, QString xvalue) {
-    curve->setTitle( title );
-    curve->setSamples ( data.value(value,U_), data.value(xvalue,X_), N_ );
+
+QwtPlotCurve* SolvWidget::getCurve(QString xvalue, QString value ) {
+    double uu[1],xx[1];
+    uu[0] = 0.0;
+    xx[0] = 0.0;
+    if(unstable) {
+      curve->setTitle( "*"+title+"*" );
+      curve->setSamples ( xx,uu,1);
+    }else{
+      curve->setTitle( title );
+      getU();
+      curve->setSamples ( data.value(xvalue,X_), data.value(value,U_), N_ );
+    }
     // tobe replaced - change pen through gui
     curve->setPen ( QPen ( QBrush ( plotColor->getValue() ), 1.5, Qt::DashLine ) );
+    return curve;
 }

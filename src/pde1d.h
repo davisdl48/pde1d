@@ -57,6 +57,7 @@ private:
   Controls *control; 
   QStandardItemModel * solvModel;
   int dockID;
+  QwtLegend * legend;
 };
 
 #endif // pde1d_H

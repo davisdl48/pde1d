@@ -52,7 +52,7 @@ public:
     virtual SolvWidget& operator= ( const SolvWidget& other );
     virtual bool operator== ( const SolvWidget& other ) const;
     QString& getTitle();
-    QwtPlotCurve * getCurve( QString value = tr("U"), QString xvalue= tr("X") );
+    QwtPlotCurve * getCurve( QString xvalue= tr("X"), QString value = tr("U") );
       
     QColor getColor();
     double getLineWidth();
