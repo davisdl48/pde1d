@@ -1,6 +1,6 @@
 /*
-    <one line to give the library's name and an idea of what it does.>
-    Copyright (C) 2012  Davis Family <email>
+    Base Class for solvers - provides the interface to pde1d
+    Copyright (C) 2012  Davis Family davisdl48@gmail.com
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -35,7 +35,7 @@ SolvWidget::SolvWidget ( QWidget *parent ) :  QDockWidget ( parent )
     dirty = true;
     setFeatures ( QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable);
     
-  unstable = false;
+    unstable = false;
 }
 
 SolvWidget::SolvWidget ( const SolvWidget& other )
@@ -48,8 +48,10 @@ SolvWidget::~SolvWidget()
     std::cout << "Delete solve widget\n";
     if ( N_ != 0 ) {
         delete[] U_;
-        delete[] Ideal_;
         delete[] X_;
+        delete[] E_;
+	delete[] J_;
+        delete[] D_;
     }
 }
 
@@ -90,6 +92,7 @@ void SolvWidget::setTitle ( QString newTitle )
 void SolvWidget::initSin ( const double value )
 {
     cStep = 0;
+    unstable = false;
     if ( N_ == 0 ) setSize ( 100 );
     totCFL = N_ / 2.0;
     cycles = value;
@@ -102,8 +105,6 @@ void SolvWidget::initSin ( const double value )
     for ( size_t i = 0; i < N_; i++ ) {
         U_[i] = Ideal_[i];
     }
-    unstable = false;
-
 }
 
 void SolvWidget::setCFL ( const double value )
@@ -123,8 +124,9 @@ void SolvWidget::setSpeed ( const double value )
 
 void SolvWidget::setup ( const size_t size, const double cycles, const double cfl )
 {
+    this->cycles = cycles;
     setSize ( size );
-    initSin ( cycles );
+    //initSin ( cycles );
     setCFL ( cfl );
 }
 
@@ -254,21 +256,19 @@ void SolvWidget::setEquation(int index) {
 void SolvWidget::setViscosity(double value) {
   if(value == visc_) return;
     visc_=value;
-    dirty=true;
-  
-    
+    dirty=true;   
 }
+
 void SolvWidget::resize(int value) {
     if ( value == N_ ) return;
     cStep = 0;
     if ( N_ != 0 ) {
         delete[] U_;
         delete[] X_;
-        delete[] Ideal_;
         delete[] E_;
 	delete[] J_;
         delete[] D_;
-        delete[] Init_;
+	delete[] Ideal_;
 
     }
     N_ = value;
@@ -277,11 +277,10 @@ void SolvWidget::resize(int value) {
     E_ = new double[N_];
     J_ = new double[N_];
     D_ = new double[N_];
-    Init_ =  new double[N_];
-
     Ideal_ = new double[N_];
     initSin ( cycles );
 }
+
 bool SolvWidget::getBurg() {
     return burg;
 }
@@ -339,5 +338,11 @@ bool SolvWidget::isUnstable() {
 }
 
 bool SolvWidget::isOK() {
-    return !unstable&&canSolve(equation);
+    return (!unstable)&&canSolve(equation);
+}
+double SolvWidget::getLineWidth() {
+    return lineWidth;
+}
+void SolvWidget::setLineWidth(double lw) {
+    lineWidth=lw;
 }

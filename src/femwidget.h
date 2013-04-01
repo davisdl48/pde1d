@@ -38,11 +38,11 @@ public:
 
     virtual void step ( const size_t nStep );
     virtual void setSize ( const size_t size = 100 );
-    const double getAlpha();
+    const double getImplicit();
     bool canSolve(int equ) ;
 
 public slots:
-    void setAlpha(double value = 0.5);
+    void setImplicit(double value = 0.5);
     void setBasis(int index);
 
 

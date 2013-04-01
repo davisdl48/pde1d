@@ -74,6 +74,7 @@ protected:
         double impl;
         double beta;
         double back;
+	double *Ideal;
 
         int ntime; // 2 - central Time Implicit, 3 - Adams
 

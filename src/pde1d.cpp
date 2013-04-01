@@ -9,6 +9,7 @@
 #include "envwidget.h"
 #include "specwidget.h"
 #include "pswidget.h"
+#include "idealwidget.h"
 #include "myinputs.h"
 
 #include <QtGui/QLabel>
@@ -31,10 +32,20 @@
 
 const bool pdeSolvers[4][9] =  {
     {true, true, true, true, true, true, true, true, true},
-    {true, true, true, true, true, true, true, true, true},
-    {true, false, false, true, false, false, true, false, true},
-    {true, false, false, true, false, false, true, false, true}
+    {false, false, true, false, false, true, false, false, true},
+    {false, false, true, false, false, true, false, false, true},
+    {false, false, true, false, false, true, false, false, true}
 };
+/* "Euler Explicit"
+   "Least Sqr Plus"
+   "Simple Implicit"
+   "Finite Element Method"
+   "General Implicit"
+   "Explicit Runge Kutta"
+   "Envelope"
+   "Spectral FFT"
+   "Pseudo Spectral"
+*/
 
 /*! Main window with a qwt plot area and a control dock widget
 */
@@ -76,20 +87,6 @@ pde1d::pde1d() : QMainWindow(), Ui_MainWindow()
     solvModel->appendRow( new QStandardItem ( tr("Envelope") ));        // addSolver(7)
     solvModel->appendRow( new QStandardItem ( tr("Spectral FFT") ));    // addSolver(8)
     solvModel->appendRow( new QStandardItem ( tr("Pseudo Spectral") )); // addSolver(9)
-
-
-    /*
-    control->addSolvCombo->addItem(tr("None"));
-    control->addSolvCombo->addItem(tr("Euler Explicit")); // addSolver(1)
-    control->addSolvCombo->addItem(tr("Least Sqr Plus"));  // addSolver(2)
-    control->addSolvCombo->addItem(tr("Simple Implicit")); // addSolver(3)
-    control->addSolvCombo->addItem(tr("Finite Element Method"));  // addSolver(4)
-    control->addSolvCombo->addItem(tr("General Implicit"));  // addSolver(5)
-    control->addSolvCombo->addItem(tr("Explicit Runge Kutta"));  // addSolver(6)
-    control->addSolvCombo->addItem(tr("Envelope"));  // addSolver(7)
-    control->addSolvCombo->addItem(tr("Spectral FFT"));  // addSolver(8)
-    control->addSolvCombo->addItem(tr("Pseudo Spectral"));  // addSolver(9)
-    */
     control->addSolvCombo->setToolTip(tr("Add a numerical solver"));
 
 
@@ -104,6 +101,8 @@ pde1d::pde1d() : QMainWindow(), Ui_MainWindow()
     connect ( control->intTimeSteps, SIGNAL ( valueChanged ( int ) ), this, SLOT ( setStop ( int ) ) );
     connect ( control->intPlotIncrement, SIGNAL ( valueChanged ( int ) ), this, SLOT ( setStep ( int ) ) );
     control->intPlotIncrement->setToolTip(tr("Plot incement = # points / CFL optional / cycles will stobe exact solution"));
+    connect ( control->plotDelayInput, SIGNAL ( valueChanged ( int ) ), this, SLOT ( setDelay(int) ));
+    control->plotDelayInput->setToolTip(tr("Extra delay (ms) to slow plot updates"));
     connect ( control->saveImageButton, SIGNAL ( clicked ( bool ) ), this, SLOT ( saveImage() ) );
     control->saveImageButton->setToolTip(tr("Saves the main window including plot to a file(default=.png)"));
     connect ( control->savePlotButton, SIGNAL ( clicked ( bool ) ), this, SLOT ( savePlot() ) );
@@ -119,16 +118,21 @@ pde1d::pde1d() : QMainWindow(), Ui_MainWindow()
     control->setFeatures ( QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable );
     addDockWidget ( Qt::LeftDockWidgetArea, control );
     replot ( "Initial Condition" );
-    N_ = 100;
+    N = 100;
     cycles = 1.0;
     CFL = 1.0;
     stop = 100;
     step = 1;
+    delay = -1;
+    setDelay(10);
     equation = 0;
     CFL=-1;
     setCFL(1.0);
     visc = -1.0;
     setViscosity(0.001);
+    IdealWidget * iw;
+    iw = new IdealWidget(this);
+    addIt(iw);
 }
 
 pde1d::~pde1d()
@@ -144,34 +148,16 @@ void pde1d::replot ( const char * title )
     qwtPlot->insertLegend ( new QwtLegend(), QwtPlot::BottomLegend );
 
     QwtPlotCurve *c1;
-    if( equation == 1 && (cycles - floor(cycles) < 1e-5) )  {
-        for ( size_t i = 0; i < eeWidgets.size();  i++ ) {
-            if( eeWidgets[i]->isOK() ) {
-                c1 = new QwtPlotCurve ( "Ideal Values" );
-                c1->setSamples ( eeWidgets[i]->getX(), eeWidgets[i]->getIdeal(), N_ );
-                c1->attach ( qwtPlot );
-                break;
-            }
-        }
-    } else if(equation == 0 ) {
-        for ( size_t i = 0; i < eeWidgets.size();  i++ ) {
-            if( eeWidgets[i]->isOK()  ) {
-                c1 = new QwtPlotCurve ( "Ideal Values" );
-                c1->setSamples ( eeWidgets[i]->getX(), eeWidgets[i]->getIdeal(), N_ );
-                c1->attach ( qwtPlot );
-                break;
-            }
-        }
-    }
+
     for ( size_t i = 0; i < eeWidgets.size();  i++ ) {
         if( eeWidgets[i]->canSolve(equation) ) {
             if( eeWidgets[i]->isUnstable() ) {
-                c1 = new QwtPlotCurve ( eeWidgets[i]->getTitle()+"-U*" );
+                c1 = new QwtPlotCurve ( "*"+eeWidgets[i]->getTitle()+"*" );
                 c1->setSamples ( xu, uu, 1 );
-                c1->setPen ( QPen ( QBrush ( eeWidgets[i]->getColor() ), 1.5, Qt::DashLine ) );
+                c1->setPen ( QPen ( QBrush ( eeWidgets[i]->getColor() ), 0.5, Qt::DotLine ) );
             } else {
                 c1 = new QwtPlotCurve ( eeWidgets[i]->getTitle() );
-                c1->setSamples ( eeWidgets[i]->getX(), eeWidgets[i]->getU(), N_ );
+                c1->setSamples ( eeWidgets[i]->getX(), eeWidgets[i]->getU(), N );
                 c1->setPen ( QPen ( QBrush ( eeWidgets[i]->getColor() ), 1.5, Qt::DashLine ) );
             }
             //c1->pen().setStyle(Qt::DashLine);
@@ -200,12 +186,10 @@ void pde1d::metrics()
     if ( errTab->errTabWid->rowCount() < 5 ) errTab->errTabWid->setRowCount ( 5 );
     for ( size_t i = 0; i < eeWidgets.size(); i++ ) {
         solv = eeWidgets[i];
-        //std::cout << "pde1d::metrics solver " << solv->getTitle().toLocal8Bit().data() << "  " << i << "  " << N_ << std::endl;
-        if(equation > 1 || ( equation == 1 && (cycles - floor(cycles) > 1e-5) ) ) {
-            ideal = eeWidgets[0]->getU();
-        } else {
-            ideal = solv->getIdeal();
-        }
+        if( !(solv->canSolve(equation)) ) continue;
+        //std::cout << "pde1d::metrics solver " << solv->getTitle().toLocal8Bit().data() << "  " << i << "  " << N << std::endl;
+
+        ideal = eeWidgets[0]->getU();
         sim = solv->getU();
         maxerr = 0.0;
         rmserr = 0.0;
@@ -213,7 +197,7 @@ void pde1d::metrics()
         minval = 1e32;
         totvar = 0.0;
         oldu = sim[0];
-        for ( size_t j = 0; j < N_; j++ ) {
+        for ( size_t j = 0; j < N; j++ ) {
             u = sim[j];
             maxval = ( u > maxval ) ? u : maxval;
             minval = ( u < minval ) ? u : minval;
@@ -229,9 +213,40 @@ void pde1d::metrics()
         du = sim[0] - oldu;
         du = ( du > 0.0 ) ? du : -du;
         totvar += du;
-        rmserr = sqrt ( rmserr / N_ );
+        rmserr = sqrt ( rmserr / N );
         //std::cout << maxerr << '\t' << rmserr << '\t' << maxval << '\t' << minval << '\t' << totvar << std::endl;
-        colname.append ( eeWidgets[i]->getTitle() );
+        if( solv->isUnstable() ) {
+            colname.append ( "*"+solv->getTitle()+"*" );
+            ti = tr("*-*-*");
+            if ( errTab->errTabWid->item ( 0, i ) == 0 ) {
+                errTab->errTabWid->setItem ( 0, i, new QTableWidgetItem ( ti ) );
+            } else {
+                errTab->errTabWid->item ( 0, i )->setText ( ti );
+            }
+            if ( errTab->errTabWid->item ( 1, i ) == 0 ) {
+                errTab->errTabWid->setItem ( 1, i, new QTableWidgetItem ( ti ) );
+            } else {
+                errTab->errTabWid->item ( 1, i )->setText ( ti );
+            }
+            if ( errTab->errTabWid->item ( 2, i ) == 0 ) {
+                errTab->errTabWid->setItem ( 2, i, new QTableWidgetItem ( ti ) );
+            } else {
+                errTab->errTabWid->item ( 2, i )->setText ( ti );
+            }
+            if ( errTab->errTabWid->item ( 3, i ) == 0 ) {
+                errTab->errTabWid->setItem ( 3, i, new QTableWidgetItem ( ti ) );
+            } else {
+                errTab->errTabWid->item ( 3, i )->setText ( ti );
+            }
+            if ( errTab->errTabWid->item ( 4, i ) == 0 ) {
+                errTab->errTabWid->setItem ( 4, i, new QTableWidgetItem ( ti ) );
+            } else {
+                errTab->errTabWid->item ( 4, i )->setText ( ti );
+            }
+            continue;
+        }
+
+        colname.append ( solv->getTitle() );
         // add data to errTab->errTab
         //maxerr
         //std::cout << "maxerr =  " << maxerr << std::endl;
@@ -280,11 +295,11 @@ void pde1d::metrics()
 
 void pde1d::setSize ( int ivalue )
 {
-    if ( N_ == ( size_t ) ivalue ) return;
-    N_ = ivalue;
+    if ( N == ( size_t ) ivalue ) return;
+    N = ivalue;
     if ( eeWidgets.empty() ) return;
     for ( size_t i = 0; i < eeWidgets.size(); i++ ) {
-        eeWidgets[i]->setSize ( N_ );
+        eeWidgets[i]->setSize ( N );
     }
 
     stop = control->intTimeSteps->getValue();
@@ -368,10 +383,10 @@ void pde1d::run()
     int istab=-1;
     if ( eeWidgets.empty() ) return;
     for( int i=0; i< eeWidgets.size(); i++) {
-      if( !(eeWidgets[i]->isUnstable()) ) { 
-	istab=i;
-	break;
-      }
+        if( !(eeWidgets[i]->isUnstable()) ) {
+            istab=i;
+            break;
+        }
     }
     if(istab == -1) return;
     //updateNames();
@@ -388,15 +403,15 @@ void pde1d::run()
         eeWidgets[i]->step ( iters );
     }
     for( int i=0; i< eeWidgets.size(); i++) {
-      if( !(eeWidgets[i]->isUnstable()) ) { 
-	istab=i;
-	break;
-      }
+        if( !(eeWidgets[i]->isUnstable()) ) {
+            istab=i;
+            break;
+        }
     }
     std::ostringstream s1;
-    s1 << "Cycle " << std::fixed << std::setw ( 10 ) << std::setprecision ( 3 ) << ( eeWidgets[istab]->getTravel() - 0.5 );
+    s1 << "Cycle " << std::fixed << std::setw ( 10 ) << std::setprecision ( 3 ) << ( eeWidgets[0]->getTravel() - 0.5 );
     replot ( s1.str().c_str() );
-    QTimer::singleShot ( 10, this, SLOT ( run() ) );
+    QTimer::singleShot ( delay, this, SLOT ( run() ) );
 }
 
 void pde1d::reset()
@@ -414,22 +429,23 @@ void pde1d::reset()
 void pde1d::savePlot ( )
 {
     int ipt;
-    QString pfile = QFileDialog::getSaveFileName ( this, tr ( "Save Plot" ), "", tr ( "Images ( *.pdf *.svg *.ps *eps )" )  );
+    QString pfile = QFileDialog::getSaveFileName ( this, tr ( "Save Plot" ), "", tr ( "Images ( *.pdf *.svg *.ps *.eps *.png )" )  );
     QString form = "svg";
     QSizeF qs(161.80,100.0);
     QwtPlotRenderer rend(this);
-    if ( pfile.contains ( QRegExp ( "//.(pdf|svg|ps)$",Qt::CaseInsensitive  ) ) ) {
+    if ( pfile.contains ( QRegExp ( "\\.(pdf|svg|ps)$",Qt::CaseInsensitive  ) ) ) {
         ipt = pfile.lastIndexOf(".");
         ipt = pfile.size() - ipt -1;
         form = pfile;
         form = form.right(ipt);
         rend.renderDocument(qwtPlot,pfile,form,qs);
-    } else if ( pfile.contains ( QRegExp ( "//.(bmp|jpg|jpeg|png|ppm|tiff|xbm|xpm)$", Qt::CaseInsensitive ) ) ) {
+    } else if ( pfile.contains ( QRegExp ( "\\.(bmp|jpg|jpeg|png|ppm|tiff|xbm|xpm)$", Qt::CaseInsensitive ) ) ) {
         ipt = pfile.lastIndexOf(".");
-        if( ipt > 1 && (pfile.length()-ipt == 4 || pfile.length()-ipt == 5 ) ) {
-            pfile.truncate(ipt);
-            pfile += ".svg";
-        }
+        ipt = pfile.size() - ipt -1;
+        form = pfile;
+        form = form.right(ipt);
+        rend.renderDocument(qwtPlot,pfile,form,qs);
+    } else {
         rend.renderDocument(qwtPlot,pfile,"svg",qs);
     }
 }
@@ -441,7 +457,7 @@ void pde1d::saveImage()
     render ( &plot );
     if ( fileName.length() == 0 ) return;
     std::cout << fileName.toUtf8().constData() << std::endl;
-    if ( fileName.contains ( QRegExp ( "//.(bmp|jpg|jpeg|png|ppm|tiff|xbm|xpm)$", Qt::CaseInsensitive ) ) ) {
+    if ( fileName.contains ( QRegExp ( "\\.(bmp|jpg|jpeg|png|ppm|tiff|xbm|xpm)$", Qt::CaseInsensitive ) ) ) {
         plot.save( fileName );
     } else {
         plot.save( fileName, "PNG", -1);
@@ -546,7 +562,7 @@ void pde1d::setEquation(int value) {
     equation=value;
     control->pdeBox->setCurrentIndex(equation);
     for( int i=0; i<9; i++ ) {
-        solvModel->item(i)->setEnabled(pdeSolvers[equation][i]);
+        solvModel->item(i+1)->setEnabled(pdeSolvers[equation][i]);
     }
     if ( eeWidgets.empty() ) return;
     for ( size_t i = 0; i < eeWidgets.size(); i++ ) {
@@ -566,7 +582,7 @@ void pde1d::setViscosity(double value) {
 
 void pde1d::addIt(SolvWidget* solver) {
     QDockWidget *qdw;
-    solver->setup ( N_, cycles, CFL );
+    solver->setup ( N, cycles, CFL );
     solver->setId ( dockID++ );
     solver->setEquation(equation);
     solver->setViscosity(visc);
@@ -579,4 +595,10 @@ void pde1d::addIt(SolvWidget* solver) {
         return;
     }
     eeWidgets.push_back ( solver );
+}
+
+void pde1d::setDelay(int value) {
+    if(value == delay ) return;
+    delay = value;
+    control->plotDelayInput->setValue(delay);
 }

@@ -998,6 +998,7 @@ void EnvWidget::rk() {
 
 void EnvWidget::initSin(const double value) {
     cStep = 0;
+    unstable = false;
     if ( N_ == 0 ) setSize ( 100 );
     totCFL = N_ / 2.0;
     cycles = value;
@@ -1010,7 +1011,6 @@ void EnvWidget::initSin(const double value) {
     for ( size_t i = 0; i < N_; i++ ) {
         U_[i] = Ideal_[i];
     }
-    unstable = false;
 }
 
 double* EnvWidget::getU() {

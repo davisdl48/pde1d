@@ -98,7 +98,7 @@ PSWidget::~PSWidget()
         gsl_fft_real_workspace_free (work_g);
         delete[] E_;
         delete[] D_;
-        delete[] Init_;
+        delete[] Ideal_;
     }
     freeData();
 }
@@ -116,6 +116,7 @@ bool PSWidget::operator== ( const PSWidget& other ) const
 
 void PSWidget::setSize ( const size_t value )
 {
+    unstable = false; /// ???
     if ( value == N_ ) return;
     // free local derived class data
     if ( N_ != 0 ) {
@@ -124,12 +125,10 @@ void PSWidget::setSize ( const size_t value )
         gsl_fft_real_workspace_free (work_g);
 
     }
+    work_g = gsl_fft_real_workspace_alloc (value);
+    real_g = gsl_fft_real_wavetable_alloc (value);
+    hc_g = gsl_fft_halfcomplex_wavetable_alloc (value);
     resize(value); // free and reallocate SolvWidget data 
-
-    work_g = gsl_fft_real_workspace_alloc (N_);
-    real_g = gsl_fft_real_wavetable_alloc (N_);
-    hc_g = gsl_fft_halfcomplex_wavetable_alloc (N_);
-
     allocateData(nStage);
 }
 
@@ -552,6 +551,7 @@ void PSWidget::rk() {
 }
 
 void PSWidget::initSin(const double value) {
+    unstable = false;
     cStep = 0;
     if ( N_ == 0 ) setSize ( 100 );
     totCFL = N_ / 2.0;

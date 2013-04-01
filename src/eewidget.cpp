@@ -55,21 +55,13 @@ void EEWidget::step ( const size_t nStep )
 
 void EEWidget::setSize ( const size_t size )
 {
-
   cStep = 0;
   if( size == N_ ) return;
   if( N_ != 0) {
-    delete[] U_;
-    delete[] f;
-    delete[] X_;
-    delete[] Ideal_;
+    delete[] f; 
   }
-  N_ = size;
-  U_ = new double[N_];
-  f = new double[N_];
-  X_ = new double[N_];
-  Ideal_ = new double[N_];
-  initSin(cycles);
+  f = new double[size];
+  resize(size);
 }
 
 EEWidget::EEWidget(): SolvWidget()
@@ -98,9 +90,9 @@ EEWidget& EEWidget::operator= ( const EEWidget& other )
 
 bool EEWidget::operator== ( const EEWidget& other ) const
 {
-
     return (this == &other);
 }
+
 bool EEWidget::canSolve(int equ) {
     return (equ == 0);
 }

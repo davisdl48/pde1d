@@ -24,6 +24,7 @@
 
 RKWidget::RKWidget ( QWidget* parent ) : SolvWidget(parent)
 {   int iwid = 4;
+    unstable = false;
     lwork = 0;
     nrhs  = 1;
     nStage = 0;
@@ -73,7 +74,6 @@ RKWidget::RKWidget ( QWidget* parent ) : SolvWidget(parent)
     setBasis(0);
     method=-1;
     setMethod(0);
-    unstable = false;
     //set_default_options(&options);
 }
 
@@ -197,25 +197,25 @@ void RKWidget::setSize ( const size_t value )
         aexist= false;
         dirty = true;
     }
-    resize(value);
-    if(nStage != 0) b_k = new double[N_*nStage];
+    if(nStage != 0) b_k = new double[value*nStage];
 
-    if ( !(rhsb = doubleMalloc(N_)) ) ABORT("Malloc fails for rhsb[].");
-    if ( !(rhsx = doubleMalloc(N_)) ) ABORT("Malloc fails for rhsx[].");
-    dCreate_Dense_Matrix(&B, N_, 1, rhsb, N_, SLU_DN, SLU_D, SLU_GE);
-    dCreate_Dense_Matrix(&X, N_, 1, rhsx, N_, SLU_DN, SLU_D, SLU_GE);
+    if ( !(rhsb = doubleMalloc(value)) ) ABORT("Malloc fails for rhsb[].");
+    if ( !(rhsx = doubleMalloc(value)) ) ABORT("Malloc fails for rhsx[].");
+    dCreate_Dense_Matrix(&B, value, 1, rhsb, value, SLU_DN, SLU_D, SLU_GE);
+    dCreate_Dense_Matrix(&X, value, 1, rhsx, value, SLU_DN, SLU_D, SLU_GE);
 
-    if ( !(etree = intMalloc(N_)) ) ABORT("Malloc fails for etree[].");
-    if ( !(perm_r = intMalloc(N_)) ) ABORT("Malloc fails for perm_r[].");
-    if ( !(perm_c = intMalloc(N_)) ) ABORT("Malloc fails for perm_c[].");
-    if ( !(R = (double *) SUPERLU_MALLOC(N_ * sizeof(double))) )
+    if ( !(etree = intMalloc(value)) ) ABORT("Malloc fails for etree[].");
+    if ( !(perm_r = intMalloc(value)) ) ABORT("Malloc fails for perm_r[].");
+    if ( !(perm_c = intMalloc(value)) ) ABORT("Malloc fails for perm_c[].");
+    if ( !(R = (double *) SUPERLU_MALLOC(value * sizeof(double))) )
         ABORT("SUPERLU_MALLOC fails for R[].");
-    if ( !(C = (double *) SUPERLU_MALLOC(N_ * sizeof(double))) )
+    if ( !(C = (double *) SUPERLU_MALLOC(value * sizeof(double))) )
         ABORT("SUPERLU_MALLOC fails for C[].");
     if ( !(ferr = (double *) SUPERLU_MALLOC( sizeof(double))) )
         ABORT("SUPERLU_MALLOC fails for ferr[].");
     if ( !(berr = (double *) SUPERLU_MALLOC( sizeof(double))) )
         ABORT("SUPERLU_MALLOC fails for berr[].");
+    resize(value);
 }
 
 void RKWidget::step ( const size_t nStep )
@@ -964,6 +964,7 @@ void RKWidget::setNStage(int arg1) {
         b_c[i] = 0.0;
     }
 }
+
 bool RKWidget::canSolve(int equ) {
     return true;
 }

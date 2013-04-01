@@ -117,24 +117,15 @@ void SpecWidget::setSize ( const size_t value )
     if ( value == N_ ) return;
     cStep = 0;
     if ( N_ != 0 ) {
-        delete[] U_;
-        delete[] X_;
-        delete[] Ideal_;
         gsl_fft_real_wavetable_free (real_g);
         gsl_fft_halfcomplex_wavetable_free (hc_g);
         gsl_fft_real_workspace_free (work_g);
 
     }
-    N_ = value;
-    U_ = new double[N_];
-    X_ = new double[N_];
-
-    work_g = gsl_fft_real_workspace_alloc (N_);
-    real_g = gsl_fft_real_wavetable_alloc (N_);
-    hc_g = gsl_fft_halfcomplex_wavetable_alloc (N_);
-
-    Ideal_ = new double[N_];
-    initSin ( cycles );
+    work_g = gsl_fft_real_workspace_alloc (value);
+    real_g = gsl_fft_real_wavetable_alloc (value);
+    hc_g = gsl_fft_halfcomplex_wavetable_alloc (value); 
+    resize(value);
     allocateData(nStage);
 }
 
@@ -530,6 +521,7 @@ void SpecWidget::rk(double* kout,double * uin) {
 
 void SpecWidget::initSin(const double value) {
     cStep = 0;
+    unstable = false;
     if ( N_ == 0 ) setSize ( 100 );
     totCFL = N_ / 2.0;
     cycles = value;
@@ -542,7 +534,6 @@ void SpecWidget::initSin(const double value) {
     for ( size_t i = 0; i < N_; i++ ) {
         U_[i] = Ideal_[i];
     }
-    unstable = false;
 }
 
 double* SpecWidget::getU() {
@@ -612,7 +603,7 @@ void SpecWidget::phaser() {
     double dr,di;
     double dot;
     double mag,ph;
-    int np;
+    size_t np;
     dscal = 2*pi/N_;
     // transform data[1]
     gsl_fft_real_transform (data[1], 1, N_, real_g, work_g);

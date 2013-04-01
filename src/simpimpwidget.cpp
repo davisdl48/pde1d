@@ -96,14 +96,14 @@ void SimpImpWidget::setSize(const size_t value)
         gsl_vector_free (B);
         gsl_vector_free (X);
     }
-    resize(value); // free and reallocate SolvWidget storage
 
     // allocate local storage
-    DIAG = gsl_vector_alloc (N_);
-    E = gsl_vector_alloc (N_);
-    F = gsl_vector_alloc (N_);
-    B = gsl_vector_alloc (N_);
-    X = gsl_vector_alloc (N_);
+    DIAG = gsl_vector_alloc (value);
+    E = gsl_vector_alloc (value);
+    F = gsl_vector_alloc (value);
+    B = gsl_vector_alloc (value);
+    X = gsl_vector_alloc (value);
+    resize(value); // free and reallocate SolvWidget storage and initialize
 }
 
 void SimpImpWidget::step(size_t nStep) {

@@ -1,6 +1,9 @@
 /*
-    <one line to give the library's name and an idea of what it does.>
-    Copyright (C) 2012  Davis Family <email>
+    This is a base class for all solution methods.
+    For new methods override the constructor to provide any editing widgets,
+    setSize(size) to allocate custom data, the destructor to delete custom data
+    and step(nsteps) to solve.
+    Copyright (C) 2012  Davis Family davisdl48@gmail.com
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -28,6 +31,7 @@
 #include <QtGui/QSpacerItem>
 #include <QtGui/QVBoxLayout>
 #include <QtGui/QWidget>
+#include <qwt_plot_curve.h>
 #include "myinputs.h"
 
 //#include "eulerexwidget.moc"
@@ -47,8 +51,12 @@ public:
     virtual ~SolvWidget();
     virtual SolvWidget& operator= ( const SolvWidget& other );
     virtual bool operator== ( const SolvWidget& other ) const;
-    QColor getColor();
     QString& getTitle();
+    QwtPlotCurve * getCurve(QString value= tr("U"));
+      
+    QColor getColor();
+    double getLineWidth();
+    void setLineWidth(double lw);
 
     const size_t getSize() ;
     void resize(int value );
@@ -92,6 +100,7 @@ public:
     MyColorButton *plotColor;
     QSpacerItem *verticalSpacer;
     void setupUi();
+    QwtPlotCurve *curve;
    
     virtual void setEquation( int index) ;
 
@@ -107,16 +116,17 @@ signals:
 
 protected:
     QString title;
+    QHash<QString,double *> data;
+    QStringList dataNames;
 
     size_t N_;
     double *U_;
-    double *Ideal_;
     double *X_;
-    /// U_t + e*E(U)_x  + d*D(U)_xx = 0.0
+    /// U_t + e_*E_(U)_x  + d_*D_(U)_xx = 0.0
     double *E_; // Flux Vector- scalar
     double *J_; // Jacobian dE/dU
     double *D_; // Dissipation Variable
-    double *Init_;
+    double *Ideal_;
     double d_; // dissipation coefficient = viscosity*dx/c*CFL
     double e_; // flux coefficient = CFL
     void Efunc(double *Udat);
@@ -135,6 +145,7 @@ protected:
     bool dirty;
     int equation;
     bool unstable;
+    double lineWidth;
 };
 
 #endif // EULEREXWIDGET_H

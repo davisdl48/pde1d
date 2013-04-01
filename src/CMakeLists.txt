@@ -12,7 +12,7 @@ QT4_ADD_RESOURCES(pde1d_RESOURCES_RCC ${pde1d_RESOURCES})
 FILE( GLOB pde1d_FORMS *.ui)
 QT4_WRAP_UI(pde1d_FORMS_HEADERS ${pde1d_FORMS})
 
-set( SOLVS pswidget.h rkwidget.h envwidget.h specwidget.h impwidget.h femwidget.h  leastsqrwidget.h simpimpwidget.h )
+set( SOLVS pswidget.h rkwidget.h envwidget.h specwidget.h impwidget.h femwidget.h  leastsqrwidget.h simpimpwidget.h idealwidget.h)
 set( pde1d_MOC_HEADERS pde1d.h solvwidget.h controls.h errtabdock.h myinputs.h ${SOLVS} )
 QT4_WRAP_CPP(pde1d_HEADERS_MOC ${pde1d_MOC_HEADERS})
 

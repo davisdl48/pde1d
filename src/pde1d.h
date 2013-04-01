@@ -20,6 +20,7 @@ public:
     public slots:
        void setSize(int ivalue) ;
        void setCycles(double value=1.0);
+       
        void reset();
        void setCFL(double value=1.0);
        void setEquation(int value=0);
@@ -27,6 +28,7 @@ public:
 
        void setStop(int value) ;
        void setStep(int value) ;
+       void setDelay(int value=10) ;
        void run();
        void stopRun();
        void saveImage();
@@ -42,11 +44,10 @@ private:
   void updateNames();
   void addIt(SolvWidget * solver) ;
   
-  double *X_;
-  double *y;
   int stop;
   int step;
-  size_t N_;
+  int delay;
+  size_t N;
   double cycles;
   double CFL;
   int equation;

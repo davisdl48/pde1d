@@ -27,9 +27,9 @@ LeastSqrWidget::LeastSqrWidget ( QWidget *parent ) : SolvWidget ( parent )
 {
     setTitle(tr("Least Squares"));
     plotNameEdit->setText ( title );
-    alphaLabel = new QLabel ( QString::fromLocal8Bit ( "Alpha" ) );
+    alphaLabel = new QLabel ( QString::fromLocal8Bit ( "Implicit" ) );
     alphaInput = new MyDoubInput ( 0.5, this, 0.0, 1.0, 0.01, 6 );
-    connect ( alphaInput, SIGNAL ( valueChanged ( double ) ), this, SLOT ( setAlpha ( double ) ) );
+    connect ( alphaInput, SIGNAL ( valueChanged ( double ) ), this, SLOT ( setImplicit ( double ) ) );
     verticalLayout->insertWidget ( 4, alphaLabel );
     verticalLayout->insertWidget ( 5, alphaInput );
     weightLabel = new QLabel ( tr ( "Basis Functions" ) );
@@ -42,7 +42,7 @@ LeastSqrWidget::LeastSqrWidget ( QWidget *parent ) : SolvWidget ( parent )
     connect ( weightBox, SIGNAL ( activated ( int ) ), this, SLOT ( setBasis ( int ) ) );
     setColor ( Qt::blue );
     a=-1;
-    setAlpha (0.5);
+    setImplicit (0.5);
     setBasis(0);
   unstable = false;
 }
@@ -73,7 +73,7 @@ bool LeastSqrWidget::operator== ( const LeastSqrWidget& other ) const
     return (this == &other);
 }
 
-void LeastSqrWidget::setAlpha ( double value )
+void LeastSqrWidget::setImplicit ( double value )
 { 
     b = 1 - value;
     if( value == a) return;
@@ -81,7 +81,7 @@ void LeastSqrWidget::setAlpha ( double value )
     alphaInput->setValue(a);
 }
 
-const double LeastSqrWidget::getAlpha()
+const double LeastSqrWidget::getImplicit()
 {
     return a;
 }
@@ -113,20 +113,13 @@ void LeastSqrWidget::setSize ( const size_t value )
         gsl_vector_free ( F ); // lower
         gsl_vector_free ( B );
         gsl_vector_free ( X );
-        delete[] U_;
-        delete[] X_;
-        delete[] Ideal_;
     }
-    N_ = value;
-    U_ = new double[N_];
-    X_ = new double[N_];
-    Ideal_ = new double[N_];
-    DIAG = gsl_vector_alloc ( N_ );
-    E = gsl_vector_alloc ( N_ );
-    F = gsl_vector_alloc ( N_ );
-    B = gsl_vector_alloc ( N_ );
-    X = gsl_vector_alloc ( N_ );
-    initSin ( cycles );
+    DIAG = gsl_vector_alloc ( value );
+    E = gsl_vector_alloc ( value );
+    F = gsl_vector_alloc ( value );
+    B = gsl_vector_alloc ( value );
+    X = gsl_vector_alloc ( value );
+    resize(value);
 }
 
 void LeastSqrWidget::step ( size_t nStep )

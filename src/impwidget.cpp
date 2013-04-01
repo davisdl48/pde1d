@@ -1242,6 +1242,7 @@ void ImpWidget::fema() {
 
 void ImpWidget::initSin(const double value) {
     cStep = 0;
+    unstable = false;
     if ( N_ == 0 ) setSize ( 100 );
     totCFL = N_ / 2.0;
     cycles = value;
@@ -1255,7 +1256,6 @@ void ImpWidget::initSin(const double value) {
         U_[i] = Ideal_[i];
     }
     if(transform) forwardTrans(U_,Utran);
-    unstable = false;
 }
 
 double* ImpWidget::getU() {
@@ -1356,10 +1356,9 @@ void ImpWidget::setupTrans() {
         gsl_blas_dgemv(CblasNoTrans,1.0,Mback,&(xvec.vector),0.0,&(bvec.vector));
         std::cout << "\n\n B\n";
         gsl_vector_fprintf (stdout,&(bvec.vector),"%g");
-
-
     }
 }
+
 bool ImpWidget::canSolve(int equ) {
     return (equ == 0);
 }

@@ -27,11 +27,11 @@ FEMWidget::FEMWidget(QWidget *parent) : SolvWidget(parent)
     setTitle(tr("Finite Element Method"));
     plotNameEdit->setText(title);
     setColor( Qt::magenta );
-    alphaLabel = new QLabel(QString::fromLocal8Bit("Alpha"));
+    alphaLabel = new QLabel(QString::fromLocal8Bit("Implicit"));
     alphaInput = new MyDoubInput(a,this,0.0,1.0,0.01,6);
     verticalLayout->insertWidget(4,alphaLabel);
     verticalLayout->insertWidget(5,alphaInput);
-    connect(alphaInput,SIGNAL(valueChanged(double)),this,SLOT(setAlpha(double)));
+    connect(alphaInput,SIGNAL(valueChanged(double)),this,SLOT(setImplicit(double)));
     weightLabel = new QLabel( tr("Basis Functions"));
     weightBox = new QComboBox(this);
     weightBox->addItem(tr("Linear Basis"));
@@ -41,7 +41,7 @@ FEMWidget::FEMWidget(QWidget *parent) : SolvWidget(parent)
     verticalLayout->insertWidget(7,weightBox);
     connect(weightBox,SIGNAL(activated(int)),this,SLOT(setBasis(int)));
     a=-1;
-    setAlpha(0.5);
+    setImplicit(0.5);
     setBasis(0);
   unstable = false;
 }
@@ -73,7 +73,7 @@ bool FEMWidget::operator== ( const FEMWidget& other ) const
     return (this == &other);
 }
 
-void FEMWidget::setAlpha(double value) {
+void FEMWidget::setImplicit(double value) {
   
     b = 1 - value;
     if( value == a) return;
@@ -81,7 +81,7 @@ void FEMWidget::setAlpha(double value) {
     alphaInput->setValue(a);
 }
 
-const double FEMWidget::getAlpha()
+const double FEMWidget::getImplicit()
 {
     return a;
 }
