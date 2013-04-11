@@ -54,7 +54,7 @@ public:
     QString& getTitle();
     QwtPlotCurve * getCurve( QString xvalue= tr("X"), QString value = tr("U") );
       
-    QColor getColor();
+    QColor getPenColor();
     double getLineWidth();
     void setLineWidth(double lw);
 
@@ -109,6 +109,7 @@ public slots:
     void setTitle ( QString title ) ;
     
     void setViscosity( double value = 0.0 ) ;
+    
 
 signals:
   void dockClose(int id);
@@ -145,6 +146,7 @@ protected:
     bool dirty;
     int equation;
     bool unstable;
+    bool samset;
     double lineWidth;
 };
 

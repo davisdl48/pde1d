@@ -224,6 +224,7 @@ void RKWidget::step ( const size_t nStep )
     DNformat *Xstore;
     double temp;
     if(unstable) return;
+    samset = false;
     if( dirty ) {
         if(aexist) {
             Destroy_CompCol_Matrix(&A);

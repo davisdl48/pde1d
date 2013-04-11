@@ -129,6 +129,7 @@ void LeastSqrWidget::step ( size_t nStep )
     double b2, ab, p2;
     double ufun;
     if(unstable) return;
+    samset = false;
     //gnuplot_ctrl * h1;
     //h1 = gnuplot_init();
     b2 = b * b * CFL * CFL;

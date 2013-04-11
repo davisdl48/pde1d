@@ -1,0 +1,83 @@
+#pde1d
+
+pde1d is intended to be an experiment/demonstration of partial differential equation numerical methods.
+It includes dynamic plotting of partial differential equations as they are being solved.  Various numerical methods can be chosen including Runge-Kutta, Euler Explicit, Finite Element, Spectral, Least Squares.  Currently only linear advection with periodic boundaries is fully implemented.  Partial implementation for diffusion and Burgers equation exist.
+
+##Controls
+
+There is a PDE selection which currently includes linear advection/wave equation, linear diffusion, Inviscid and Viscus Burger's Equation.
+
+Add new solvers with the combo box.  To remove a solver close its tab.  Each solver tab has a title which shows up on the tab, plot legend and Error Table.  Also each solver tab has a color chooser to select the color on the plot.
+
+Also on controls tab are:
+* Number of Points - the number of point and intervals to use
+* Number of Cycles - Can be partial cycles to introduce a discontinuity in the initial condition
+* CFL - Effectively the time step, CFL = c* Dt / Dx : note: wave speed = c = 1
+* Viscosity - note: for stability consider viscosity * CFL / Dx
+* Time Steps - Time steps to solve
+* Plot Increment - update plot each plot increment steps.  Setting Plot Increment = Number of Points / CFL will replot full cycles of ideal solution to show how the error is changing.
+* Plot Delay - extra delay added to slow animation in milliseconds
+* Save Image - will save an image of the current window including visible tabs and error table
+* Save Plot - saves the current plot possibly in a vector format, *.svg, *.ps, or *.pdf.
+* Reset - resets all value to the initial conditions - works while running
+* Run - start solving the equations
+* Stop - interrupt the solution
+
+##Solvers
+
+The solvers are broken into primary and secondary solvers.
+
+1. Euler Explicit - first order up-wind differencing
+2. Least Squares Plus (LSP) - A least squares fit of the new time solution
+    * Choice of Linear or Raised Cosine basis functions 
+    * Implicit = degree of implicitness in time integration (0=explicit, 1=full implicit)
+3. Simple Implicit - A tri-diagonal implicit finite difference solver.
+    * Implicit = degree of implicitness in time integration (0=explicit, 1=full implicit)
+    * Upwinding = shifts central difference to first order upwind
+    * Note: Implicit =0 and Upwind = 1 is the same as Euler Explicit
+4. Finite Element Method (FEM)
+    * Implicit = degree of implicitness in time integration (0=explicit, 1=full implicit)
+    * Linear or Raised Cosine Basis Function
+5. General Implicit - Choices of FEM and LSP with Central or Adams-Molton 3rd Order time integration
+    * Choice of Linear or Raised Cosine basis functions
+    * Implicit = degree of implicitness in time integration (0=explicit, 1=full implicit)
+    * Backward = coefficient on n-1 for time integration (Backward = -1/12,Implicit = 5/12 is third order)
+    * note: only LSP is stable for CFL < 0.91 at third order
+6. Explicit Runge Kutta - Runge-Kutta methods using Butcher Tableau
+    * Mid-Point - 2nd Order
+    * Trapezoid - 2nd Order
+    * RK4 - Traditional 4th order Runge Kutta
+    * Arb-RK-4 - Arbitrary Order Multi Stage method (excludes explicit time dependents in right hand side) set to 4th order
+    * RKG-4 - Runge Kutta Gill 4th order method using Butcher Tableau
+    * TVD-RK-3 - Third order method reported to be less oscillatory. TVD = Total Variation Diminishing  
+    * Choice of Linear or Raised Cosine basis as well as finite difference with central or 4th order
+7. Envelope - does not work well - to be replaced with spectral patch method
+8. Spectral FFT - Performs a Fourier transform then updates in the frequency domain 
+    * LSP - Least Squares Plus
+    * FEM - Finite Element Method
+    * RK-Mid Pt - Mid Point Runge-Kutta
+    * RK-Trap - Trapezoidal Runge-Kutta
+    * RK4 - Traditional 4th order Runge-Kutta
+    * Arb-RK4 - Arbitrary Order Multi-Stage set to 4th order
+    * Phaser - full explicit update in polar coordinates - update phase and magnitude at each frequency
+9. Pseudo Spectral - Transforms flux function to update in the frequency domain
+    * LSP - Least Squares Plus
+    * FEM - Finite Element Method
+    * RK-Mid Pt - Mid Point Runge-Kutta
+    * RK-Trap - Trapezoidal Runge-Kutta
+    * RK4 - Traditional 4th order Runge-Kutta
+    * Arb-RK4 - Arbitrary Order Multi-Stage set to 4th order
+    * Phaser - full explicit update in polar coordinates - update phase and magnitude at each frequency
+
+##Error Table
+
+The error table shows error values after the solution has been stopped. 
+Note: if an ideal solution is not available errors are differences to the first stable solver
+
+* Max Error - Maximum difference between ideal and solved values
+* RMS Error - Root Mean Squared Error sqrt( sum( err^2 )/N )
+* Max Value - The Maximum of the solved value points
+* Min Value - The Minimum of the solved points
+* Total Variation - Total Variation of the solution = sum of the absolute value of the difference between adjacent points
+
+

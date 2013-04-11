@@ -252,6 +252,7 @@ void EnvWidget::step ( const size_t nStep )
         totCFL = N_/2.0;
     }
     if(unstable) return;
+    samset = false;
     int ubstart=0;
     bool printinout=true;
     for ( size_t ns = 0; ns < nStep; ns++ ) {

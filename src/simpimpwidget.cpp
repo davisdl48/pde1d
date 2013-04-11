@@ -113,6 +113,7 @@ void SimpImpWidget::step(size_t nStep) {
     int nm,np;
     double ufun;
     if(unstable) return;
+    samset = false;
     for(size_t n = 0; n< nStep; n++) {
         Efunc(U_);
         Dfunc(U_);

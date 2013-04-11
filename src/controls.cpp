@@ -1,6 +1,6 @@
 /*
-    <one line to give the library's name and an idea of what it does.>
-    Copyright (C) 2013  Davis Family <email>
+    QDockWidget with primary controls for pde1d
+    Copyright (C) 2013  Davis Family davisdl48@gmail.com
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -84,6 +84,8 @@ void Controls::setupUi() {
 
     intNumberOfPoints = new MyIntInput(dockWidgetContents);
     intNumberOfPoints->setObjectName(QString::fromUtf8("intNumberOfPoints"));
+    intNumberOfPoints->setMinimumWidth(30);
+    intNumberOfPoints->setMaximumWidth(222);
     intNumberOfPoints->setValue(100);
     //intNumberOfPoints->setMinimum(4);
 
@@ -96,6 +98,8 @@ void Controls::setupUi() {
 
     cyclesInput = new MyDoubInput(dockWidgetContents);
     cyclesInput->setObjectName(QString::fromUtf8("cyclesInput"));
+    cyclesInput->setMinimumWidth(30);
+    cyclesInput->setMaximumWidth(222);
     cyclesInput->setValue(1);
     //cyclesInput->setMinimum(-9999);
     //cyclesInput->setDecimals(6);
@@ -116,6 +120,8 @@ void Controls::setupUi() {
 
     cflInput = new MyDoubInput(dockWidgetContents);
     cflInput->setObjectName(QString::fromUtf8("cflInput"));
+    cflInput->setMinimumWidth(30);
+    cflInput->setMaximumWidth(111);
     cflInput->setValue(1);
     //cflInput->setMinimum(-9999);
     //cflInput->setDecimals(4);
@@ -124,6 +130,8 @@ void Controls::setupUi() {
 
     viscInput = new MyDoubInput(dockWidgetContents);
     viscInput->setObjectName(QString::fromUtf8("viscInput"));
+    viscInput->setMinimumWidth(30);
+    viscInput->setMaximumWidth(111);
     //viscInput->setMinimum(-1);
     //viscInput->setSingleStep(0.0001);
     //viscInput->setDecimals(4);
@@ -142,6 +150,8 @@ void Controls::setupUi() {
 
     intTimeSteps = new MyIntInput(dockWidgetContents);
     intTimeSteps->setObjectName(QString::fromUtf8("intTimeSteps"));
+    intTimeSteps->setMinimumWidth(30);
+    intTimeSteps->setMaximumWidth(111);
     intTimeSteps->setValue(100);
     //intTimeSteps->setMinimum(0);
 
@@ -149,6 +159,8 @@ void Controls::setupUi() {
 
     intPlotIncrement = new MyIntInput(dockWidgetContents);
     intPlotIncrement->setObjectName(QString::fromUtf8("intPlotIncrement"));
+    intPlotIncrement->setMinimumWidth(30);
+    intPlotIncrement->setMaximumWidth(111);
     intPlotIncrement->setValue(1);
     //intPlotIncrement->setMinimum(1);
 
@@ -161,6 +173,8 @@ void Controls::setupUi() {
 
     plotDelayInput = new MyIntInput(dockWidgetContents);
     plotDelayInput->setObjectName(QString::fromUtf8("plotDelayInput"));
+    plotDelayInput->setMinimumWidth(30);
+    plotDelayInput->setMaximumWidth(111);
 
     gridLayout->addWidget(plotDelayInput, 4, 1, 1, 1);
 

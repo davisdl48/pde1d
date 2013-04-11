@@ -52,12 +52,7 @@ Q_OBJECT
 public:
     MyDoubInput(QWidget* parent = 0);
     MyDoubInput(const QString& , QWidget* parent = 0);
-    MyDoubInput(double value, QWidget *parent=0,double lower=-1.7e+308, double upper=1.7e+308,  double singleStep=0.01, int precision=6){
-      minValue=lower;
-      maxValue=upper;
-      increment = singleStep;
-      prec = precision;
-    }
+    MyDoubInput(double value, QWidget *parent=0,double lower=-1.7e+308, double upper=1.7e+308,  double singleStep=0.01, int precision=6);
       
     QDoubleValidator * val;
     double getValue();

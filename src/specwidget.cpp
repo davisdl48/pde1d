@@ -133,6 +133,7 @@ void SpecWidget::step ( const size_t nStep )
 {
     double temp;
     if(unstable) return;
+    samset = false;
     if(totCFL == N_ / 2.0 && ntime == 3) {
         totCFL -= CFL;
         getIdeal();

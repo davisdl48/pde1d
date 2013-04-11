@@ -109,6 +109,7 @@ void FEMWidget::step ( const size_t nStep )
     double tt,six;
     double tf,eith;
     if(unstable) return;
+    samset = false;
     b = 1-a;
     if(cosBas) {
         //Cosine Bases

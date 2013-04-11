@@ -8,7 +8,9 @@
 #include "controls.h"
 #include "ui_firstwindow.h"
 #include "errtabdock.h"
-#include <vector>
+#include "curvetabdock.h"
+#include "curvesmodel.h"
+#include <QList>
 
 class pde1d : public QMainWindow, Ui_MainWindow
 {
@@ -36,6 +38,7 @@ public:
        void addSolver(int index = 0);
        void removeSolver(int index = 0);
        //void removeSolver(QObject *obj = 0);
+       void refresh() ;
 	  	 
       
 private:
@@ -52,7 +55,9 @@ private:
   double CFL;
   int equation;
   double visc;
-  std::vector<SolvWidget *> eeWidgets;
+  QList<SolvWidget *> eeWidgets;
+  CurveTabDock *curveTab;
+  CurvesModel *curveModel;
   ErrTabDock *errTab;
   Controls *control; 
   QStandardItemModel * solvModel;

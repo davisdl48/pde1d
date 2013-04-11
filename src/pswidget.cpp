@@ -142,6 +142,7 @@ void PSWidget::step ( const size_t nStep )
         totCFL = N_/2.0;
     }
     if(unstable) return;
+    samset = false;
     for ( size_t ns = 0; ns < nStep; ns++ ) {
         // copy U_ to data[1]
         for( size_t nn=0; nn<N_; nn++) data[1][nn] = U_[nn];

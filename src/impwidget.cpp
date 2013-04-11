@@ -263,6 +263,7 @@ void ImpWidget::step ( const size_t nStep )
         totCFL = N_/2.0;
     }
     if(unstable) return;
+    samset = false;
     if( dirty ) {
         if(aexist) {
             Destroy_CompCol_Matrix(&A);

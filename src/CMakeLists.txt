@@ -1,4 +1,3 @@
-
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 #FIND_PACKAGE(Qt4 REQUIRED)
 
@@ -13,13 +12,13 @@ FILE( GLOB pde1d_FORMS *.ui)
 QT4_WRAP_UI(pde1d_FORMS_HEADERS ${pde1d_FORMS})
 
 set( SOLVS pswidget.h rkwidget.h envwidget.h specwidget.h impwidget.h femwidget.h  leastsqrwidget.h simpimpwidget.h idealwidget.h)
-set( pde1d_MOC_HEADERS pde1d.h solvwidget.h controls.h errtabdock.h myinputs.h ${SOLVS} )
+set( pde1d_MOC_HEADERS pde1d.h solvwidget.h controls.h errtabdock.h myinputs.h curvetabdock.h itemdelegate.h curvesmodel.h colordelegate.h ${SOLVS} )
+# 
 QT4_WRAP_CPP(pde1d_HEADERS_MOC ${pde1d_MOC_HEADERS})
 
 FILE( GLOB pde1d_SRCS *.cpp)
 FILE( GLOB pde1d_HEADERS *.h)
 #QT4_AUTOMOC(${pde1d_SRCS} ${pde1d_MOC_HEADERS})
-
 
 ADD_EXECUTABLE(pde1d ${pde1d_SRCS} ${pde1d_HEADERS_MOC} ${pde1d_FORMS_HEADERS} ${pde1d_RESOURCES_RCC}  )
 # ../superlu/lib/libsuperlu_4.3.a)

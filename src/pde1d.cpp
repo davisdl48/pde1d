@@ -63,12 +63,18 @@ pde1d::pde1d() : QMainWindow(), Ui_MainWindow()
     qwtPlot->setCanvasBackground ( Qt::white );
     qwtPlot->setAutoDelete(false);
     
+    
     legend = new QwtLegend();
     qwtPlot->insertLegend ( legend, QwtPlot::BottomLegend );
 
     errTab = new ErrTabDock ( tr ( "Metrics" ), this );
     errTab->setFeatures ( QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable );
     addDockWidget ( Qt::BottomDockWidgetArea, errTab );
+    
+    curveTab = new CurveTabDock(tr("Curves"), this);
+    curveTab->setFeatures ( QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable );
+    this->addDockWidget ( Qt::BottomDockWidgetArea,curveTab );
+    this->tabifyDockWidget(curveTab,errTab);
 
     control = new Controls ( tr ( "Controls" ), this );
 
@@ -85,12 +91,13 @@ pde1d::pde1d() : QMainWindow(), Ui_MainWindow()
     solvModel->appendRow( new QStandardItem ( tr("Euler Explicit") ));  // addSolver(1)
     solvModel->appendRow( new QStandardItem ( tr("Least Sqr Plus") ));  // addSolver(2)
     solvModel->appendRow( new QStandardItem ( tr("Simple Implicit") )); // addSolver(3)
-    solvModel->appendRow( new QStandardItem ( tr("Finite Element Method") ));// addSolver(4)
-    solvModel->appendRow( new QStandardItem ( tr("General Implicit") ));// addSolver(5)
-    solvModel->appendRow( new QStandardItem ( tr("Explicit Runge Kutta") ));// addSolver(6)
+    solvModel->appendRow( new QStandardItem ( tr("Finite Element Method") )); // addSolver(4)
+    solvModel->appendRow( new QStandardItem ( tr("General Implicit") )); // addSolver(5)
+    solvModel->appendRow( new QStandardItem ( tr("Explicit Runge Kutta") )); // addSolver(6)
     solvModel->appendRow( new QStandardItem ( tr("Envelope") ));        // addSolver(7)
     solvModel->appendRow( new QStandardItem ( tr("Spectral FFT") ));    // addSolver(8)
     solvModel->appendRow( new QStandardItem ( tr("Pseudo Spectral") )); // addSolver(9)
+    
     control->addSolvCombo->setToolTip(tr("Add a numerical solver"));
 
 
@@ -138,15 +145,21 @@ pde1d::pde1d() : QMainWindow(), Ui_MainWindow()
     IdealWidget * iw;
     iw = new IdealWidget(this);
     addIt(iw);
+    
+    curveModel = new CurvesModel();
+    curveModel->setSolvers(&eeWidgets);
+    connect( curveModel, SIGNAL( newdata() ), this, SLOT( refresh()));
+    curveTab->setCurvesModel(curveModel);
 }
 
 pde1d::~pde1d()
-{}
+{
+  delete curveModel;
+}
 
 void pde1d::replot ( const char * title )
 {
-    double xu[1] = {0.0};
-    double uu[1] = {0.0};
+ 
     if ( eeWidgets.empty() ) return;
     std::cout << qwtPlot->autoDelete() << std::endl;
     //qwtPlot->detachItems();
@@ -159,7 +172,6 @@ void pde1d::replot ( const char * title )
 	    eeWidgets[i]->getCurve()->detach();
 	}
     }
-
     qwtPlot->setTitle ( title );
     qwtPlot->replot();
 }
@@ -530,7 +542,7 @@ void pde1d::removeSolver ( int id )
             metrics();
             if ( eeWidgets.empty() ) return;
             std::ostringstream s1;
-            s1 << "Cycle " << std::fixed << std::setw ( 10 ) << std::setprecision ( 3 ) << ( eeWidgets[0]->getTravel() - 0.5 );
+            s1 << "Cycle " << std::fixed << std::setw ( 10 ) << std::setprecision ( 3 ) << ( eeWidgets.at(0)->getTravel() - 0.5 );
             replot ( s1.str().c_str() );
             return;
         }
@@ -591,6 +603,7 @@ void pde1d::addIt(SolvWidget* solver) {
         return;
     }
     eeWidgets.push_back ( solver );
+    if(eeWidgets.size() > 1) curveModel->solverAdded();
     replot("Initial Conditions");
 }
 
@@ -598,4 +611,13 @@ void pde1d::setDelay(int value) {
     if(value == delay ) return;
     delay = value;
     control->plotDelayInput->setValue(delay);
+}
+
+void pde1d::refresh() {
+    metrics();
+    if ( eeWidgets.empty() ) return;
+    std::ostringstream s1;
+    s1 << "Cycle " << std::fixed << std::setw ( 10 ) << std::setprecision ( 3 ) << ( eeWidgets.at(0)->getTravel() - 0.5 );
+    std::cout << s1 << std::endl;
+    replot ( s1.str().c_str() );
 }

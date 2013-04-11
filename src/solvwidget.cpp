@@ -40,7 +40,7 @@ SolvWidget::SolvWidget ( QWidget *parent ) :  QDockWidget ( parent )
     frameNum = 0;
     dirty = true;
     setFeatures ( QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable);
-    
+    samset = false;
     unstable = false;
 }
 
@@ -73,7 +73,7 @@ bool SolvWidget::operator== ( const SolvWidget& other ) const
 }
 
 
-QColor SolvWidget::getColor()
+QColor SolvWidget::getPenColor()
 {
     return plotColor->getValue();
 }
@@ -94,7 +94,7 @@ void SolvWidget::setColor ( QColor color )
 
 void SolvWidget::setTitle ( QString newTitle )
 {
-    std::cout << "SolvWidget::setTitle( " << title.toLocal8Bit().data() << " )\n";
+    //std::cout << "SolvWidget::setTitle( " << title.toLocal8Bit().data() << " )\n";
     title = newTitle;
     plotNameEdit->setText ( title );
     setWindowTitle(title);
@@ -102,6 +102,7 @@ void SolvWidget::setTitle ( QString newTitle )
 
 void SolvWidget::initSin ( const double value )
 {
+    samset = false;
     cStep = 0;
     unstable = false;
     if ( N_ == 0 ) setSize ( 100 );
@@ -319,6 +320,8 @@ void SolvWidget::setupUi() {
     verticalLayout->addWidget(plotNameLabel);
 
     plotNameEdit = new QLineEdit(dockWidgetContents);
+    plotNameEdit->setMinimumWidth(50);
+    plotNameEdit->setMaximumWidth(222);
     plotNameEdit->setObjectName(QString::fromUtf8("plotNameEdit"));
 
     verticalLayout->addWidget(plotNameEdit);
@@ -330,6 +333,8 @@ void SolvWidget::setupUi() {
     verticalLayout->addWidget(plotColorLabel);
 
     plotColor = new MyColorButton(dockWidgetContents);
+    plotColor->setMinimumWidth(30);
+    plotColor->setMaximumWidth(222);
     plotColor->setObjectName(QString::fromUtf8("plotColor"));
 
     verticalLayout->addWidget(plotColor);
@@ -360,26 +365,29 @@ bool SolvWidget::isUnstable() {
 bool SolvWidget::isOK() {
     return (!unstable)&&canSolve(equation);
 }
+
 double SolvWidget::getLineWidth() {
     return lineWidth;
 }
+
 void SolvWidget::setLineWidth(double lw) {
     lineWidth=lw;
 }
 
 QwtPlotCurve* SolvWidget::getCurve(QString xvalue, QString value ) {
-    double uu[1],xx[1];
-    uu[0] = 0.0;
-    xx[0] = 0.0;
+    double xx[1] = {0.0};
+    double uu[1] = {0.0};
     if(unstable) {
       curve->setTitle( "*"+title+"*" );
-      curve->setSamples ( xx,uu,1);
+      if( !samset ) curve->setSamples ( xx,uu,1);
+      //curve->setSamples ( xx,uu,1);
     }else{
       curve->setTitle( title );
-      getU();
-      curve->setSamples ( data.value(xvalue,X_), data.value(value,U_), N_ );
+      if(!id) getU();
+      if( !samset ) curve->setSamples ( data.value(xvalue,X_), data.value(value,U_), N_ );
+      //curve->setSamples ( data.value(xvalue,X_), data.value(value,U_), N_ );
     }
     // tobe replaced - change pen through gui
-    curve->setPen ( QPen ( QBrush ( plotColor->getValue() ), 1.5, Qt::DashLine ) );
+    // curve->setPen ( QPen ( QBrush ( plotColor->getValue() ), 1.5, Qt::DashLine ) );
     return curve;
 }

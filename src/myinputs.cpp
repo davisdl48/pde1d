@@ -54,9 +54,13 @@ int MyIntInput::getValue() {
 
 void MyIntInput::done() {
     bool ok;
-    myValue = text().toInt(&ok);
+    int value;
+    value = text().toInt(&ok);
     if(ok) {
+      if(value != myValue) {
+        myValue = value;
         emit valueChanged(myValue);
+      }
     } else {
         setText( QString("%1").arg(myValue));
     }
@@ -94,13 +98,25 @@ MyDoubInput::MyDoubInput(const QString& value, QWidget* parent): QLineEdit(value
     connect(this,SIGNAL(editingFinished()),this,SLOT(done()));
 }
 
-
+MyDoubInput::MyDoubInput(double value, QWidget* parent, double lower, double upper, double singleStep, int precision)
+:QLineEdit(parent) {
+    myValue = value;
+    minValue=lower;
+    maxValue=upper;
+    increment = singleStep;
+    prec = precision;
+    setText(QString("%1").arg(myValue));
+}
 
 void MyDoubInput::done() {
     bool ok;
-    myValue = text().toDouble(&ok);
+    double value;
+    value = text().toDouble(&ok);
     if(ok) {
-        emit valueChanged(myValue);
+      if(value != myValue) {
+      myValue = value;
+      emit valueChanged(myValue);
+      }
     } else {
         setText( QString("%1").arg(myValue));
     }
@@ -109,6 +125,11 @@ void MyDoubInput::done() {
 void MyDoubInput::setValue(double value) {
     myValue = value;
     setText(QString("%1").arg(myValue));
+}
+
+double MyDoubInput::getValue() {
+  done();
+  return myValue;
 }
 
 MyColorButton::MyColorButton(QWidget* parent) : QPushButton(parent)
