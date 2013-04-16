@@ -146,10 +146,8 @@ void EnvWidget::setBasis ( int index )
         winoff=4;
         weights = new double[winwid];
         dthet = 2*pi/winwid;
-        std::cout << " Weights\n";
         for(int i=0; i<winwid; i++)  {
             weights[i]=(1-cos(i*dthet))/2;
-            std::cout << i << "  " << weights[i] << std::endl;
         }
         setupTrans(winwid);
         break;
@@ -158,15 +156,11 @@ void EnvWidget::setBasis ( int index )
         winoff=6;
         weights = new double[winwid];
         dthet = 2*pi/(winwid-2);
-        std::cout << " Weights\n";
         weights[0]=0.0;
-        std::cout << "0  " << weights[0] << std::endl;
         for(int i=1; i<winwid-1; i++)  {
             weights[i]=(1-cos((i-1)*dthet))/2;
-            std::cout << i << "  " << weights[i] << std::endl;
         }
         weights[winwid-1]=0.0;
-        std::cout << winwid-1 << "  " << weights[winwid-1] << std::endl;
         //for(int i=0; i<winwid; i++)  weights[i]=1.0;
         setupTrans(winwid);
     case 3: // raised cos by 15
@@ -175,15 +169,11 @@ void EnvWidget::setBasis ( int index )
 	setSize(15);
         weights = new double[winwid];
         dthet = 2*pi/(winwid-2);
-        std::cout << " Weights\n";
         weights[0]=0.0;
-        std::cout << "0  " << weights[0] << std::endl;
         for(int i=1; i<winwid-1; i++)  {
             weights[i]=(1-cos((i-1)*dthet))/2;
-            std::cout << i << "  " << weights[i] << std::endl;
         }
         weights[winwid-1]=0.0;
-        std::cout << winwid-1 << "  " << weights[winwid-1] << std::endl;
         for(int i=0; i<winwid; i++)  weights[i]=1.0;
         //for(int i=0; i<winwid; i++)  weights[i]=1.0;
         setupTrans(winwid);
@@ -268,11 +258,7 @@ void EnvWidget::step ( const size_t nStep )
                 istart++;
                 if(istart == N_) istart = 0;
             }
-            if(printinout) {
-                std::cout << "Uvec in = ";
-                for(int i=0; i< nbas; i++) std::cout<< gsl_vector_get(UVec,i) << ", ";
-                std::cout <<  std::endl;
-            }
+          
             // transform U  -  (U*window)-> Utran
             gsl_linalg_LU_solve(Mforw,permut,UVec,TranVec);
             // update Utran -
@@ -292,12 +278,7 @@ void EnvWidget::step ( const size_t nStep )
             gsl_linalg_LU_solve(Left,lpermut,BVec,TranVec);
             // inverse transform TranVec
             gsl_blas_dgemv(CblasNoTrans,1.0,Mback,TranVec,0.0,UVec);
-            if(printinout) {
-                std::cout << "Uvec out = ";
-                for(int i=0; i< nbas; i++) std::cout<< gsl_vector_get(UVec,i) << ", ";
-                std::cout <<  std::endl;
-            }
-
+           
             // sum to new U
             istart = iwin;
 

@@ -23,9 +23,11 @@
 
 #include <qstyleditemdelegate.h>
 #include <QComboBox>
+#include <QPen>
 #include <QStringList>
 #include <QVariant>
 #include <qwt_symbol.h>
+#include <QPainter>
 
 typedef struct { QString name; QwtSymbol::Style val; } NV;
 
@@ -124,6 +126,19 @@ public:
     return "What??";
     }
       
+     static const QIcon getIcon(QwtSymbol &sym) {
+        QPixmap pmap(24,24);
+	QColor col = sym.pen().color();
+	int bright = col.red() + 2*col.green() + col.blue();
+        if(bright > 600 ) {
+            pmap.fill(Qt::black);
+        } else {
+            pmap.fill(Qt::white);
+        }
+        QPainter painter(&pmap);
+	sym.drawSymbol(&painter,QPointF(11,11));
+        return QIcon(pmap);
+    }
 };
 
 class SymbolSizeDelegate : public QStyledItemDelegate

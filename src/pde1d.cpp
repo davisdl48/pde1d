@@ -78,10 +78,11 @@ pde1d::pde1d() : QMainWindow(), Ui_MainWindow()
 
     control = new Controls ( tr ( "Controls" ), this );
 
-    control->pdeBox->addItem( tr("U_t + c U_x = 0"));
-    control->pdeBox->addItem( tr("U_t - d_ U_xx = 0"));
-    control->pdeBox->addItem( tr("U_t+(U^2)_x=0"));
-    control->pdeBox->addItem( tr("U_t+(U^2)_x-d_ U_xx"));
+    control->pdeBox->addItem( QIcon(":/images/linAdvect.png"),tr("Advection"));
+    control->pdeBox->addItem( QIcon(":/images/linAdvect.png"),tr("Advection/Diffusion"));
+    control->pdeBox->addItem( QIcon(":/images/burger.png"),tr("Burgers"));
+    control->pdeBox->addItem( QIcon(":/images/burger.png"),tr("Visc.Burgers"));
+    control->pdeBox->setIconSize(QSize(170,30));
     connect ( control->pdeBox, SIGNAL( activated(int) ), this, SLOT( setEquation(int) ));
 
     connect ( control->addSolvCombo, SIGNAL ( activated ( int ) ), this, SLOT ( addSolver ( int ) ) );
@@ -161,10 +162,6 @@ void pde1d::replot ( const char * title )
 {
  
     if ( eeWidgets.empty() ) return;
-    std::cout << qwtPlot->autoDelete() << std::endl;
-    //qwtPlot->detachItems();
-    //qwtPlot->insertLegend ( legend, QwtPlot::BottomLegend );
- 
     for ( size_t i = 0; i < eeWidgets.size();  i++ ) {
         if( eeWidgets[i]->canSolve(equation) ) {
             eeWidgets[i]->getCurve()->attach( qwtPlot );
@@ -194,8 +191,6 @@ void pde1d::metrics()
     for ( size_t i = 0; i < eeWidgets.size(); i++ ) {
         solv = eeWidgets[i];
         if( !(solv->canSolve(equation)) ) continue;
-        //std::cout << "pde1d::metrics solver " << solv->getTitle().toLocal8Bit().data() << "  " << i << "  " << N << std::endl;
-
         ideal = eeWidgets[0]->getU();
         sim = solv->getU();
         maxerr = 0.0;
@@ -221,7 +216,6 @@ void pde1d::metrics()
         du = ( du > 0.0 ) ? du : -du;
         totvar += du;
         rmserr = sqrt ( rmserr / N );
-        //std::cout << maxerr << '\t' << rmserr << '\t' << maxval << '\t' << minval << '\t' << totvar << std::endl;
         if( solv->isUnstable() ) {
             colname.append ( "*"+solv->getTitle()+"*" );
             ti = tr("*-*-*");
@@ -254,17 +248,12 @@ void pde1d::metrics()
         }
 
         colname.append ( solv->getTitle() );
-        // add data to errTab->errTab
-        //maxerr
-        //std::cout << "maxerr =  " << maxerr << std::endl;
         ti = QString ( "%1" ).arg ( maxerr );
         if ( errTab->errTabWid->item ( 0, i ) == 0 ) {
             errTab->errTabWid->setItem ( 0, i, new QTableWidgetItem ( ti ) );
         } else {
             errTab->errTabWid->item ( 0, i )->setText ( ti );
         }
-        //rmserr
-        //std::cout << "rmserr =  " << rmserr << std::endl;
         ti = QString ( "%1" ).arg ( rmserr );
         if ( errTab->errTabWid->item ( 1, i ) == 0 ) {
             errTab->errTabWid->setItem ( 1, i, new QTableWidgetItem ( ti ) );
@@ -279,16 +268,12 @@ void pde1d::metrics()
         } else {
             errTab->errTabWid->item ( 2, i )->setText ( ti );
         }
-        //minval
-        //std::cout << "minval =  " << minval << std::endl;
         ti = QString ( "%1" ).arg ( minval );
         if ( errTab->errTabWid->item ( 3, i ) == 0 ) {
             errTab->errTabWid->setItem ( 3, i, new QTableWidgetItem ( ti ) );
         } else {
             errTab->errTabWid->item ( 3, i )->setText ( ti );
         }
-        //totvar
-        //std::cout << "totvar =  " << totvar << std::endl;
         ti = QString ( "%1" ).arg ( totvar );
         if ( errTab->errTabWid->item ( 4, i ) == 0 ) {
             errTab->errTabWid->setItem ( 4, i, new QTableWidgetItem ( ti ) );
@@ -463,7 +448,6 @@ void pde1d::saveImage()
     QImage plot( size(), QImage::Format_RGB666 );
     render ( &plot );
     if ( fileName.length() == 0 ) return;
-    std::cout << fileName.toUtf8().constData() << std::endl;
     if ( fileName.contains ( QRegExp ( "\\.(bmp|jpg|jpeg|png|ppm|tiff|xbm|xpm)$", Qt::CaseInsensitive ) ) ) {
         plot.save( fileName );
     } else {
@@ -618,6 +602,5 @@ void pde1d::refresh() {
     if ( eeWidgets.empty() ) return;
     std::ostringstream s1;
     s1 << "Cycle " << std::fixed << std::setw ( 10 ) << std::setprecision ( 3 ) << ( eeWidgets.at(0)->getTravel() - 0.5 );
-    std::cout << s1 << std::endl;
     replot ( s1.str().c_str() );
 }

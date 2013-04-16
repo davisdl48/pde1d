@@ -383,7 +383,7 @@ dgssvx(superlu_options_t *options, SuperMatrix *A, int *perm_c, int *perm_r,
 	bignum = 1. / smlnum;
     }
 
-#if 1
+#if 0
 printf("dgssvx: Fact=%4d, Trans=%4d, equed=%c\n",
        options->Fact, options->Trans, *equed);
 #endif

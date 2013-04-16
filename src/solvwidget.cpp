@@ -21,12 +21,17 @@
 #include "solvwidget.h"
 #include <iostream>
 #include <cmath>
+#include <qwt_symbol.h>
 
 SolvWidget::SolvWidget ( QWidget *parent ) :  QDockWidget ( parent )
 {
     setupUi ( );
     curve = new QwtPlotCurve();
-    connect ( plotColor, SIGNAL ( valueChanged ( QColor ) ), this, SLOT ( setColor ( QColor ) ) ) ;
+    curve->setRenderHint(QwtPlotItem::RenderAntialiased, true);
+    curve->setLegendAttribute(QwtPlotCurve::LegendShowBrush, true);
+    curve->setLegendAttribute( QwtPlotCurve::LegendShowLine , true);
+    curve->setLegendAttribute( QwtPlotCurve::LegendShowSymbol, true);
+    connect ( plotColor, SIGNAL ( valueChanged ( QColor ) ), this, SLOT ( setColor ( QColor ) ) );
     connect ( plotNameEdit, SIGNAL ( textEdited ( QString ) ), this, SLOT ( setTitle ( QString ) ) );
     dataNames.append(tr("X")); // locations
     dataNames.append(tr("U")); // default dependant variable
@@ -51,10 +56,8 @@ SolvWidget::SolvWidget ( const SolvWidget& other )
 
 SolvWidget::~SolvWidget()
 {
-    //std::cout << "Delete solve widget\n";
     QHash<QString, double *>::const_iterator iter = data.constBegin();
     while( iter != data.constEnd()) {
-      std::cout << iter.key().toLocal8Bit().constData() << ":  " << iter.value() << std::endl;
       delete[] iter.value();
       iter++;
     }
@@ -89,12 +92,29 @@ QString& SolvWidget::getTitle()
 
 void SolvWidget::setColor ( QColor color )
 {
+    const QwtSymbol *sym;
+    QwtSymbol::Style style;
+    QBrush brush;
+    QPen pen;
+    QSize size;
     plotColor->setValue ( color );
+    pen = curve->pen();
+    pen.setColor(color);
+    curve->setPen(pen);
+    sym = curve->symbol();
+    if( sym != NULL && sym->style() != QwtSymbol::NoSymbol ) {
+      style = sym->style();
+      brush = sym->brush();
+      brush.setColor(color);
+      pen = sym->pen();
+      pen.setColor(color);
+      size = sym->size();
+      curve->setSymbol( new QwtSymbol(style,brush,pen,size) );    
+    }
 }
 
 void SolvWidget::setTitle ( QString newTitle )
 {
-    //std::cout << "SolvWidget::setTitle( " << title.toLocal8Bit().data() << " )\n";
     title = newTitle;
     plotNameEdit->setText ( title );
     setWindowTitle(title);
@@ -202,7 +222,6 @@ double SolvWidget::getTravel()
 
 void SolvWidget::closeEvent ( QCloseEvent* ev )
 {
-    //std::cout << "Recieved close event\n" << std::flush;
     emit dockClose(id);
     ev->accept();
 }
@@ -215,7 +234,6 @@ int SolvWidget::getId()
 void SolvWidget::setId ( int value )
 {
     id = value;
-    std::cout << " dock " << title.toLocal8Bit().data() << "  id = " << id << std::endl;
 }
 
 void SolvWidget::Efunc(double* Udat) {

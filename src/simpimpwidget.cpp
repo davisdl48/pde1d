@@ -87,7 +87,6 @@ void SimpImpWidget::setUpwind(double value) {
 
 void SimpImpWidget::setSize(const size_t value)
 {
-    //std::cout << "SimpImpLW::setSize( " << value << " )\n";
     if( value == N_) return;
     if( N_ != 0) { // free derived class storage
         gsl_vector_free (DIAG);
@@ -135,20 +134,16 @@ void SimpImpWidget::step(size_t nStep) {
             v0 = -2*d_*visc_*CFL/dx;
             vm = d_*visc_*CFL/dx;
             ufun = fm*E_[nm]+f0*E_[nn]+fp*E_[np] + vm*D_[nm]+v0*D_[nn]+vp*D_[np];
-            //std::cout <<  ufun << '\t' << U_[nn] << std::endl;
             gsl_vector_set (B,nn,ufun);
             gsl_vector_set(DIAG,nn,1-(f0*J_[nn]+v0)*impl);
             gsl_vector_set(E,nn,-(fp*J_[np]+vp)*impl);
             gsl_vector_set(F,nn,-(fm*J_[nm]+vm)*impl);
         }
-        //std::cout << std::endl << std::endl;
         gsl_linalg_solve_cyc_tridiag (DIAG,E,F,B,X);
         for(size_t i=0; i<N_; i++) {
-            //std::cout <<  gsl_vector_get(X,i) << '\t' << U_[i] << std::endl;
             U_[i] = U_[i]+ gsl_vector_get(X,i);
 	    if(U_[i] > 1e16) unstable = true;
         }
-        //std::cout << std::endl << std::endl;
         cStep++;
         totCFL += CFL;
     }

@@ -38,10 +38,8 @@ void EEWidget::step ( const size_t nStep )
     for(size_t i=1; i<N_; i++) {
       U_[i] = U_[i]+CFL*(f[i-1]-f[i]);
       if(U_[i] > 1e16) unstable = true;
-      //std::cout << X_[i] << '\t' << U_[i] << std::endl;
     }
     U_[0] = U_[0]+CFL*(f[N_-1]-f[0]);
-    //std::cout << std::endl << std::endl;
     cStep++;
     totCFL += CFL;
   }

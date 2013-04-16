@@ -121,6 +121,7 @@ QVariant CurvesModel::data(const QModelIndex& index, int role) const
 	  }
 	  break;
         case Qt::EditRole :
+        case Qt::UserRole:
 	  if(curve->symbol() != NULL && curve->symbol()->style() != QwtSymbol::NoSymbol ) {
             return curve->symbol()->size().width();
 	  }
@@ -207,6 +208,7 @@ bool CurvesModel::setData(const QModelIndex& index, const QVariant& value, int r
         symbolStyle = QwtSymbol::Style(value.toInt());
         if(curve->symbol() == NULL) {
             if(symbolStyle == QwtSymbol::NoSymbol ) return false;
+	    pen.setStyle(Qt::SolidLine);
             symbol = new QwtSymbol(symbolStyle,QBrush(),pen,QSize(7,7));//Qt::transparent
         } else {
             if(curve->symbol()->style() == symbolStyle) return false;
@@ -305,6 +307,24 @@ void CurvesModel::setSolvers(QList< SolvWidget* >  *eeWidgets) {
     beginResetModel();
     solvers = eeWidgets;
     endResetModel();
+}
+
+QColor CurvesModel::getSymbolColor(int row) const { 
+    SolvWidget* solv =  solvers->at(row);
+    QwtPlotCurve* curve = solv->curve;
+    if(curve->symbol() != NULL && curve->symbol()->style() != QwtSymbol::NoSymbol) {
+            return curve->symbol()->pen().color();
+    }
+    return curve->pen().color();
+}
+
+int CurvesModel::getSymbolSize(int row) const {
+    SolvWidget* solv =  solvers->at(row);
+    QwtPlotCurve* curve = solv->curve;
+    if(curve->symbol() != NULL && curve->symbol()->style() != QwtSymbol::NoSymbol) {
+            return curve->symbol()->size().width();
+    }
+    return 7;
 }
 
 

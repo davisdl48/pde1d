@@ -244,7 +244,6 @@ void RKWidget::step ( const size_t nStep )
         if(nblock == 1) {
             // load with coef[] ???
             fillA();
-            std::cout << " nnz = " << nnz << std::endl;
         } else if (nup+ndn == 0) {
             // solve seperate independent blocks???
         } else {
@@ -618,7 +617,6 @@ void RKWidget::fillA() {
     double temp;
     xa[0] = 0;
     nnz=0;
-    //std::cout << " --col-  -row-  -cbeg-\n";
     for(col = 0; col < N_; col++) {
         if(col < nup ) { // upper left
             row = 0;
@@ -626,12 +624,10 @@ void RKWidget::fillA() {
         } else if( col >= N_-ndn ) { // upper right
             row = 0;
             cbeg = col -(N_ - ndn);
-            //std::cout << col << "  " << row  << "  " << cbeg << std::endl;
         } else { // middle
             row = col - nup +1;
             cbeg = nvar-1;
         }
-        //std::cout << col << "  " << row << "  "<< nvar << "  " << cbeg << std::endl;
         for(; cbeg >= 0 ; cbeg--) {
             temp = coef[cbeg];
             if(temp != 0.0 ) {
@@ -651,7 +647,6 @@ void RKWidget::fillA() {
             cbeg = nvar-1;
         }
         if(cbeg) {
-            std::cout << col << "  " << row  << "  " << cbeg << std::endl;
             for(; cbeg >= 0 ; cbeg--) {
                 temp = coef[cbeg];
                 if(temp != 0.0 ) {
@@ -720,7 +715,6 @@ void RKWidget::blockFillA() {
             row = (bcol - bnup +1)*nblock;
             bbeg = bnvar-1;
         }
-        //std::cout << col << "  " << row << "  "<< nvar << "  " << bbeg << std::endl;
         for(; bbeg >= 0 ; bbeg--) {
             ccol = (bbeg-bivar)*nblock + bcolcol + ivar;
             if(ccol < 0) continue;
@@ -790,12 +784,9 @@ void RKWidget::fillB(int stg) {
             rhsb[i+nb] = 0;
             ui = i-ndn;
             if(ui < 0) ui = N_+ui;
-            //std::cout << i << " U_[n]  \n";
             for( int j =0; j<nvar; j++ ) {
-                //std::cout << ui << "  ";
                 rhsb[i+nb] += coef[nb*nvar*2 + nvar + j]*e_*E_[ui];
                 rhsb[i+nb] += coef[nb*nvar*2 + 2*nvar + j]*d_*D_[ui];
-                //std::cout << "coef [ "<< nb*nvar*2 + nvar + j << " ] * " << ui << std::endl;
                 ui++;
                 if(ui == N_) ui=0;
             }

@@ -104,7 +104,6 @@ void LeastSqrWidget::setBasis ( int index )
 
 void LeastSqrWidget::setSize ( const size_t value )
 {
-    std::cout << "LeastSqrLW::setSize( " << value << " )\n";
     if ( value == N_ ) return;
     cStep = 0;
     if ( N_ != 0 ) {
@@ -165,20 +164,13 @@ void LeastSqrWidget::step ( size_t nStep )
         for ( size_t i = 0; i < N_; i++ ) {
             U_[i] = gsl_vector_get ( X, i );
 	    if(U_[i] > 1e16) unstable = true;
-            //std::cout << X_[i] << '\t' << U_[i] << std::endl;
         }
-        //std::cout << std::endl << std::endl;
         cStep++;
         totCFL += CFL;
     }
-    return;/*
-  for(size_t i=0; i<N_; i++) {
-    fout << X_[i] << '\t' << U_[i] << std::endl;
-  }
-  fout << std::endl << std::endl;
-  */
-    //gnuplot_close(h1);
+    return;
 }
+
 bool LeastSqrWidget::canSolve(int equ) {
     return (equ == 0);
 }

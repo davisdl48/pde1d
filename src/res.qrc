@@ -1,0 +1,7 @@
+<!DOCTYPE RCC><RCC version="1.0">
+ <qresource>
+     <file>images/linAdvect.png</file>
+     <file>images/burger.png</file>
+     <file>images/waveEq.png</file>
+ </qresource>
+ </RCC>

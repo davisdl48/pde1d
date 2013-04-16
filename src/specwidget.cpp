@@ -37,9 +37,9 @@ SpecWidget::SpecWidget ( QWidget* parent ) : SolvWidget(parent)
     methodBox = new QComboBox ( this );
     methodModel = new QStandardItemModel(this);
     methodBox->setModel(methodModel);
-    methodModel->appendRow( new QStandardItem ( tr("LSP - Cent. time") )); // (0)
+    methodModel->appendRow( new QStandardItem ( tr("LSP") )); // (0)
     methodModel->appendRow( new QStandardItem ( tr("LSP - Adams") ));      // (1)
-    methodModel->appendRow( new QStandardItem ( tr("FEM - Cent. time") )); // (2)
+    methodModel->appendRow( new QStandardItem ( tr("FEM") )); // (2)
     methodModel->appendRow( new QStandardItem ( tr("FEM - Adams") ));      // (3)
     methodModel->appendRow( new QStandardItem ( tr("RK-Mid Pt") ));        // (4)
     methodModel->appendRow( new QStandardItem ( tr("RK-Trap") ));          // (5)

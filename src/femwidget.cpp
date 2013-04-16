@@ -147,9 +147,7 @@ void FEMWidget::step ( const size_t nStep )
         for(size_t i=0; i<N_; i++) {
             U_[i] = gsl_vector_get(X,i);
 	    if(U_[i] > 1e16) unstable = true;
-            //std::cout << X_[i] << '\t' << U_[i] << std::endl;
         }
-        //std::cout << std::endl << std::endl;
         cStep++;
         totCFL += CFL;
     }

@@ -43,6 +43,8 @@ public:
     virtual Qt::ItemFlags flags(const QModelIndex& index) const;
 
     void setSolvers(QList<SolvWidget *> *eeWidgets) ;
+    QColor getSymbolColor(int row) const ;
+    int getSymbolSize(int row) const ;
 
     void solverAdded(  ) ;
 
@@ -53,16 +55,16 @@ public:
         if ( col == Qt::blue ) return tr("Blue");
         if ( col == Qt::black ) return tr("Black");
         if ( col == Qt::green ) return tr("Green");
-        if ( col == Qt::darkCyan ) return tr("DarkCyan");
-        if ( col == Qt::darkMagenta ) return tr("DarkMagenta");
-        if ( col == Qt::darkYellow ) return tr("DarkYellow");
-        if ( col == Qt::darkGray ) return tr("DarkGray");
-        if ( col == Qt::darkRed ) return tr("DarkRed");
-        if ( col == Qt::darkGreen ) return tr("DarkGreen");
-        if ( col == Qt::darkBlue ) return tr("DarkBlue");
+        if ( col == Qt::darkCyan ) return tr("DCyan");
+        if ( col == Qt::darkMagenta ) return tr("DMagenta");
+        if ( col == Qt::darkYellow ) return tr("DYellow");
+        if ( col == Qt::darkGray ) return tr("DGray");
+        if ( col == Qt::darkRed ) return tr("DRed");
+        if ( col == Qt::darkGreen ) return tr("DGreen");
+        if ( col == Qt::darkBlue ) return tr("DBlue");
         if ( col == Qt::magenta ) return tr("Magenta");
         if ( col == Qt::gray ) return tr("Gray");
-        if ( col == Qt::lightGray ) return tr("LightGray");
+        if ( col == Qt::lightGray ) return tr("LGray");
         if ( col == Qt::cyan ) return tr("Cyan");
         if ( col == Qt::yellow ) return tr("Yellow");
         if ( col == Qt::white ) return tr("White");

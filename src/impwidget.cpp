@@ -283,7 +283,6 @@ void ImpWidget::step ( const size_t nStep )
         if(nblock == 1) {
             // load with coef[] ???
             fillA();
-            std::cout << " nnz = " << nnz << std::endl;
         } else if (nup+ndn == 0) {
             // solve seperate independent blocks???
         } else {
@@ -1343,19 +1342,14 @@ void ImpWidget::setupTrans() {
 
         return;
         // debug information printout
-        std::cout << " Mback\n";
         gsl_matrix_fprintf (stdout,Mback,"%g");
-        std::cout << "\n\n Mforw\n";
         gsl_matrix_fprintf (stdout,Mforw,"%g");
         gsl_vector_view bvec = gsl_vector_view_array (testin, 4);
         gsl_vector_view xvec = gsl_vector_view_array (testout, 4);
-        std::cout << "\n\n B\n";
         gsl_vector_fprintf (stdout,&(bvec.vector),"%g");
         gsl_linalg_LU_solve (Mforw, permut, &(bvec.vector), &(xvec.vector));
-        std::cout << "\n\n Btran\n";
         gsl_vector_fprintf (stdout,&(xvec.vector),"%g");
         gsl_blas_dgemv(CblasNoTrans,1.0,Mback,&(xvec.vector),0.0,&(bvec.vector));
-        std::cout << "\n\n B\n";
         gsl_vector_fprintf (stdout,&(bvec.vector),"%g");
     }
 }

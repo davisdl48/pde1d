@@ -22,7 +22,9 @@
 #include <QComboBox>
 #include <QStringList>
 #include "myinputs.h"
+#include "curvesmodel.h"
 #include <iostream>
+#include <qwt_symbol.h>
 
 
 QList<NV> SymbolStyleDelegate::syms;
@@ -87,7 +89,6 @@ void LineWidthDelegate::setEditorData(QWidget* editor, const QModelIndex& index)
     bool ok;
     if(MyDoubInput *dinp = qobject_cast<MyDoubInput *>(editor)) {
         dinp->setValue(index.data(Qt::EditRole).toDouble(&ok));
-	std::cout << "set editor data  " << index.data(Qt::EditRole).toDouble() << "  ok = " << ok << std::endl;
     } else {
         QStyledItemDelegate::setEditorData(editor, index);
     }
@@ -116,10 +117,29 @@ QWidget* SymbolStyleDelegate::createEditor(QWidget* parent, const QStyleOptionVi
 {
     QComboBox *cb = new QComboBox(parent);
     QListIterator<NV> iter(syms);
+    QwtSymbol symbol;
+    QColor color;
+    int size;
+    QModelIndex ind;
+    const CurvesModel *model = dynamic_cast<const CurvesModel*>(index.model());
+    if( model == NULL) {
+      symbol.setBrush(QBrush(Qt::white));
+      symbol.setPen(QPen(Qt::black));
+      symbol.setSize(QSize(10,10));
+    }else{
+      // get color and size from the model  
+      color = model->getSymbolColor(index.row());
+      size = model->getSymbolSize(index.row());
+      symbol.setBrush(QBrush(Qt::white));
+      symbol.setPen(QPen(color));
+      symbol.setSize(QSize(size,size));
+    }
     while(iter.hasNext()) {
       NV sym = iter.next();    
       //cb->addItem(getIcon(col),CurvesModel::colorName(col),variant);
-      cb->addItem(sym.name,sym.val);
+      symbol.setStyle(sym.val);
+      
+      cb->addItem(getIcon(symbol),sym.name,sym.val);
     }
   
     //cb->addItem(tr("UserStyle"),15);
@@ -132,7 +152,6 @@ void SymbolStyleDelegate::setEditorData(QWidget* editor, const QModelIndex& inde
     if(QComboBox *cb = qobject_cast<QComboBox *>(editor)) {
         // get the index of the text in the combobox that matches the current value of the item
         cbIndex = cb->findData(index.data(Qt::EditRole).toInt());
-	std::cout << "cbIndex= " << cbIndex << std::endl;
         // if it is valid, adjust the combobox
         if(cbIndex >= -1)  {
 	  cb->setCurrentIndex(cbIndex);
