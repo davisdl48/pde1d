@@ -36,7 +36,8 @@ const bool pdeSolvers[4][9] =  {
     {false, false, true, false, false, true, false, false, true},
     {false, false, true, false, false, true, false, false, true}
 };
-/* "Euler Explicit"
+/* 
+   "Euler Explicit"
    "Least Sqr Plus"
    "Simple Implicit"
    "Finite Element Method"

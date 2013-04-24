@@ -34,10 +34,11 @@ SimpImpWidget::SimpImpWidget(QWidget *parent): SolvWidget(parent)
     upwLabel = new QLabel(QString::fromLocal8Bit("Upwinding"));
     upwInput = new MyDoubInput(0.0,this,-0.1,1.1,0.01,6);
     connect(upwInput,SIGNAL(valueChanged(double)),this,SLOT(setUpwind(double)));
-    verticalLayout->insertWidget(4,impLabel);
-    verticalLayout->insertWidget(5,impInput);
-    verticalLayout->insertWidget(6,upwLabel);
-    verticalLayout->insertWidget(7,upwInput);
+    verticalLayout->addWidget(impLabel);
+    verticalLayout->addWidget(impInput);
+    verticalLayout->addWidget(upwLabel);
+    verticalLayout->addWidget(upwInput);
+    verticalLayout->addItem(verticalSpacer);
     setColor( Qt::green );
     unstable = false;
     impl = -1; // to prevent auto return

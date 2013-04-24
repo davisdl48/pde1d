@@ -25,6 +25,7 @@
 
 SolvWidget::SolvWidget ( QWidget *parent ) :  QDockWidget ( parent )
 {
+    nwidgets = 0;
     setupUi ( );
     curve = new QwtPlotCurve();
     curve->setRenderHint(QwtPlotItem::RenderAntialiased, true);
@@ -42,11 +43,12 @@ SolvWidget::SolvWidget ( QWidget *parent ) :  QDockWidget ( parent )
     dt = 0.0;
     pi = 4 * atan ( 1.0 );
     cStep = 0;
-    frameNum = 0;
     dirty = true;
     setFeatures ( QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable);
     samset = false;
     unstable = false;
+    nghost = 0;
+    nfghost = 1;
 }
 
 SolvWidget::SolvWidget ( const SolvWidget& other )
@@ -303,6 +305,17 @@ void SolvWidget::resize(int value) {
          data.insert(*constIterator, new double[value]);
     }
     
+    QHash<QString, double *>::const_iterator fiter = fluxes.constBegin();
+    while( fiter != fluxes.constEnd()) {
+      delete[] fiter.value();    
+      fiter++;
+    }
+    QStringList::const_iterator constfIterator;
+    for (constfIterator = fluxNames.constBegin(); constfIterator != fluxNames.constEnd();
+            ++constfIterator){
+         fluxes.insert(*constfIterator, new double[value+1]);
+    }
+    
   // temporary for compatablitiy  
     if ( N_ != 0 ) {
 	delete[] Ideal_;
@@ -352,7 +365,7 @@ void SolvWidget::setupUi() {
 
     plotColor = new MyColorButton(dockWidgetContents);
     plotColor->setMinimumWidth(30);
-    plotColor->setMaximumWidth(222);
+    plotColor->setMaximumWidth(100);
     plotColor->setObjectName(QString::fromUtf8("plotColor"));
 
     verticalLayout->addWidget(plotColor);
@@ -384,14 +397,6 @@ bool SolvWidget::isOK() {
     return (!unstable)&&canSolve(equation);
 }
 
-double SolvWidget::getLineWidth() {
-    return lineWidth;
-}
-
-void SolvWidget::setLineWidth(double lw) {
-    lineWidth=lw;
-}
-
 QwtPlotCurve* SolvWidget::getCurve(QString xvalue, QString value ) {
     double xx[1] = {0.0};
     double uu[1] = {0.0};
@@ -408,4 +413,7 @@ QwtPlotCurve* SolvWidget::getCurve(QString xvalue, QString value ) {
     // tobe replaced - change pen through gui
     // curve->setPen ( QPen ( QBrush ( plotColor->getValue() ), 1.5, Qt::DashLine ) );
     return curve;
+}
+void SolvWidget::setSize(const size_t size) {
+    resize(size);
 }

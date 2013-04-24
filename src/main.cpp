@@ -6,10 +6,7 @@ int main(int argc, char** argv)
 {
   
   QApplication app(argc, argv);
-  Q_INIT_RESOURCE(res); 
-  QLabel l;
-  l.setPixmap(QPixmap(":/images/linAdvect.png"));
-  l.show();
+  Q_INIT_RESOURCE(res);
   pde1d foo;
   foo.show();
   return app.exec();

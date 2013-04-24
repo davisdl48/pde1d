@@ -34,12 +34,87 @@
 #include <qwt_plot_curve.h>
 #include "myinputs.h"
 
-//#include "eulerexwidget.moc"
-/*! Base widget should be inherited to add a numerical solver
- * 
- * To add a new solver inherit from this class and override
- * ~ - the destructor to delete data
- * setSize(int ) - dimension data and delete if nessecary 
+/// Base widget to be inherited to add a numerical solver
+/**
+This base class provides much of the structure for interaction
+with the remainder of the code.  To add a new solver inherit from this class
+and override the functions.
+\code
+void step(const size_t nStep ) {  -- to solve for nStep times }
+bool canSolve(int equ); // indicates the solver can solve equation number equ
+\endcode
+
+The constructor should add variable names to dataNames for data at \f$ x_i \f$ nodes
+and fluxNames for data at midpoints, \f$ x_i-1/2 \f$.  e.g.
+\code
+dataNames.append(tr("MyVariableName"));
+\endcode
+This will make the variable double pointer available as
+\code
+double *myVariable;
+myVariable = data.value(tr("MyVariableName"));
+\endcode
+
+\todo make all variables accessible for plotting by name
+
+default names include 
+ "X" // locations
+ "U" // default dependant variable
+ "E" // convective flux - e.g. c*U or 1/2 U^2
+ "D" // diffusive flux - e.g. nu*U
+ "Jac" // Jacobian dE/dU
+  
+To add custom widgets/controls for the solver, create QWidget items, connect the signals
+to slots and add them to verticalLayout within the constructor.
+\code
+    upwLabel = new QLabel(tr("Upwinding"));
+    upwInput = new MyDoubInput(0.0,this,-0.1,1.1,0.01,6);// (Initial Value, this, minValue, maxValue, increment, precision)
+    connect(upwInput,SIGNAL(valueChanged(double)),this,SLOT(setUpwind(double)));
+    verticalLayout->addWidget(upwLabel);
+    verticalLayout->addWidget(upwInput);
+    .
+    .
+    .
+    verticalLayout->addItem(verticalSpacer);
+\endcode
+
+Also, initialize any custom parameters in the constructor and
+set the initial values in any custom widgets.
+
+For additional data that does not fit the form as a double array (double pointer)
+override setSize(int value) to allocate the custom data items. 
+\note at the end of the setSize() method make sure to call resize(int value) to
+perform the automatic size updates.  resize() will allocate all named variables in dataNames
+and fluxNames and reset the array size variable N_.
+
+Override the destructor to delete any custom data types.
+
+The new solver must currently be added to pde1d.cpp
+Include the new headers
+\code
+#include "specwidget.h"
+#include "pswidget.h"
+\endcode
+in the constructor add the new solvers to the combobox, e.g.
+\code
+    solvModel->appendRow( new QStandardItem ( tr("Spectral FFT") ));    // addSolver(8)
+    solvModel->appendRow( new QStandardItem ( tr("Pseudo Spectral") )); // addSolver(9)
+\endcode
+and in addSolver ( int index ) add the additionnal case, e.g.
+\code    
+    case 8:
+        SpecWidget *specw;
+        specw= new SpecWidget ( this );
+        addIt(specw);
+        break;
+    case 9:
+        PSWidget *psw;
+        psw = new PSWidget ( this );
+        addIt(psw);
+        break;
+\endcode
+
+\todo make the new solver a shared object and load it with dlopen so pde1d does not need to be modified.
 */
 class SolvWidget : public  QDockWidget
 {
@@ -52,11 +127,10 @@ public:
     virtual SolvWidget& operator= ( const SolvWidget& other );
     virtual bool operator== ( const SolvWidget& other ) const;
     QString& getTitle();
+    
     QwtPlotCurve * getCurve( QString xvalue= tr("X"), QString value = tr("U") );
       
     QColor getPenColor();
-    double getLineWidth();
-    void setLineWidth(double lw);
 
     const size_t getSize() ;
     void resize(int value );
@@ -88,8 +162,9 @@ public:
     int getId() ;
     void setId ( int value ) ;
 
-    virtual void closeEvent ( QCloseEvent *ev ) ;
-    virtual void setSize ( const size_t size = 100 ) = 0;
+    void closeEvent ( QCloseEvent *ev );
+    
+    virtual void setSize ( const size_t size = 100 );
     virtual void step ( const size_t nStep ) = 0;
     
     QWidget *dockWidgetContents;
@@ -119,6 +194,8 @@ protected:
     QString title;
     QHash<QString,double *> data;
     QStringList dataNames;
+    QHash<QString,double *> fluxes;
+    QStringList fluxNames;
 
     size_t N_;
     double *U_;
@@ -140,7 +217,6 @@ protected:
     int cStep;
     double pi;
     double totCFL;
-    int frameNum;
     int id;
     bool burg;
     bool dirty;
@@ -148,6 +224,9 @@ protected:
     bool unstable;
     bool samset;
     double lineWidth;
+    int nghost;
+    int nfghost;
+    int nwidgets;
 };
 
 #endif // EULEREXWIDGET_H
