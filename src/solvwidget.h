@@ -39,6 +39,7 @@
 This base class provides much of the structure for interaction
 with the remainder of the code.  To add a new solver inherit from this class
 and override the functions.
+
 \code
 void step(const size_t nStep ) {  -- to solve for nStep times }
 bool canSolve(int equ); // indicates the solver can solve equation number equ
@@ -155,12 +156,9 @@ public:
     virtual bool canSolve(int equ);
     bool isUnstable() ;
     bool isOK();
-    
-    bool getBurg();
-   
 
     int getId() ;
-    void setId ( int value ) ;
+    void setId (const int value ) ;
 
     void closeEvent ( QCloseEvent *ev );
     
@@ -210,6 +208,7 @@ protected:
     void Efunc(double *Udat);
     void Dfunc(double *Ddat);
     double visc_; // viscosity
+    double speed_;
     double dt;
     double dx;
     double CFL;
@@ -218,15 +217,12 @@ protected:
     double pi;
     double totCFL;
     int id;
-    bool burg;
     bool dirty;
     int equation;
     bool unstable;
     bool samset;
-    double lineWidth;
     int nghost;
     int nfghost;
-    int nwidgets;
 };
 
 #endif // EULEREXWIDGET_H

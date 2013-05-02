@@ -25,7 +25,6 @@
 
 SolvWidget::SolvWidget ( QWidget *parent ) :  QDockWidget ( parent )
 {
-    nwidgets = 0;
     setupUi ( );
     curve = new QwtPlotCurve();
     curve->setRenderHint(QwtPlotItem::RenderAntialiased, true);
@@ -233,23 +232,29 @@ int SolvWidget::getId()
     return id;
 }
 
-void SolvWidget::setId ( int value )
+void SolvWidget::setId ( const int value )
 {
     id = value;
 }
 
 void SolvWidget::Efunc(double* Udat) {
-    if(burg) {
-        for(size_t nn=0; nn<N_; nn++) {
-            E_[nn] = Udat[nn]*Udat[nn]/2.0;
-	    J_[nn] = Udat[nn];
-        }
-    } else {
+   switch( equation ) {
+     default:
+     case 0:
+     case 1:
         for(size_t nn=0; nn<N_; nn++) {
             E_[nn] = Udat[nn];
 	    J_[nn] = 1.0;
         }
-    }
+        return;
+     case 2:
+     case 3:
+        for(size_t nn=0; nn<N_; nn++) {
+            E_[nn] = Udat[nn]*Udat[nn]/2.0;
+	    J_[nn] = Udat[nn];
+        }
+        return;
+   }
 }
 
 void SolvWidget::Dfunc(double* Ddat) {
@@ -261,7 +266,6 @@ void SolvWidget::Dfunc(double* Ddat) {
 
 void SolvWidget::setEquation(int index) {
     equation = index;
-    burg=false;
     dirty=true;
     switch(index) {
     default:
@@ -274,12 +278,10 @@ void SolvWidget::setEquation(int index) {
         e_=0.0;
         break;
     case 2:
-        burg=true;
         e_=1.0;
         d_=0.0;
         break;
     case 3:
-        burg=true;
         e_=1.0;
         d_=1.0;
     }
@@ -331,10 +333,6 @@ void SolvWidget::resize(int value) {
     
     // End temporary data values 
     initSin ( cycles );
-}
-
-bool SolvWidget::getBurg() {
-    return burg;
 }
 
 void SolvWidget::setupUi() {
@@ -410,10 +408,10 @@ QwtPlotCurve* SolvWidget::getCurve(QString xvalue, QString value ) {
       if( !samset ) curve->setSamples ( data.value(xvalue,X_), data.value(value,U_), N_ );
       //curve->setSamples ( data.value(xvalue,X_), data.value(value,U_), N_ );
     }
-    // tobe replaced - change pen through gui
-    // curve->setPen ( QPen ( QBrush ( plotColor->getValue() ), 1.5, Qt::DashLine ) );
+    samset = true;
     return curve;
 }
+
 void SolvWidget::setSize(const size_t size) {
     resize(size);
 }

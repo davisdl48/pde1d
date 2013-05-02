@@ -25,6 +25,18 @@ void EEWidget::step ( const size_t nStep )
   if(N_==0) return;
   if(unstable) return;
   samset = false;
+  switch(equation) {
+    default:
+    case 0:
+    case 1:
+      advection();
+      return;
+    case 2:
+    case 3:
+      burger();
+      return;
+  }
+      
   for(size_t n = 0; n < nStep; n++) {
     if(CFL > 0) {
       for(size_t i=0; i<N_; i++) {

@@ -666,16 +666,15 @@ void SpecWidget::setEquation(int value) {
         e_=0.0;
         break;
     case 2:
-        burg=true;
         e_=1.0;
         d_=0.0;
         break;
     case 3:
-        burg=true;
         e_=1.0;
         d_=1.0;
     }
 }
+
 bool SpecWidget::canSolve(int equ) {
     return pdeSolvers[equ][method];
 }
