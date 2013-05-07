@@ -24,6 +24,25 @@ public:
        void setCycles(double value=1.0);
        
        void reset();
+       void setSpeed(double value = 1.0) {
+	 if(value == speed) return;
+	 speed = value;
+	 dirty = true;
+	 if( dx != 0.0) {
+	 CFL = dt*speed/dx;
+	 }
+       }
+       
+       void setTimeStep(double value = 0.01) {
+	 if(value == dt) return;
+	 dt = value;
+	 dirty = true;
+	 if( dx != 0.0) {
+	 CFL = dt*speed/dx;
+	 }
+       }
+	
+	 
        void setCFL(double value=1.0);
        void setEquation(int value=0);
        void setViscosity(double value=0.001);
@@ -52,6 +71,8 @@ private:
   int delay;
   size_t N;
   double cycles;
+  double dt;
+  double speed;
   double CFL;
   int equation;
   double visc;

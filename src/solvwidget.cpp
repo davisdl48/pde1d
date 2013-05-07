@@ -35,12 +35,15 @@ SolvWidget::SolvWidget ( QWidget *parent ) :  QDockWidget ( parent )
     connect ( plotNameEdit, SIGNAL ( textEdited ( QString ) ), this, SLOT ( setTitle ( QString ) ) );
     dataNames.append(tr("X")); // locations
     dataNames.append(tr("U")); // default dependant variable
+    dataNames.append(tr("dU")); // time update value
     dataNames.append(tr("E")); // convective flux - e.g. c*U or 1/2 U^2
     dataNames.append(tr("D")); // diffusive flux - e.g. nu*U
     dataNames.append(tr("Jac")); // Jacobian d(D_x)/dU
     N_ = 0;
     dt = 0.0;
     pi = 4 * atan ( 1.0 );
+    xmin_ = 0;
+    xmax_ = 2*pi;
     cStep = 0;
     dirty = true;
     setFeatures ( QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable);
@@ -129,9 +132,9 @@ void SolvWidget::initSin ( const double value )
     if ( N_ == 0 ) setSize ( 100 );
     totCFL = N_ / 2.0;
     cycles = value;
-    dx = 2 * pi / N_;
+    dx = (xmax_ - xmin_) / N_;
     for ( size_t i = 0; i < N_; i++ ) {
-        X_[i] = dx * i;
+        X_[i] = xmin_ + dx * i;
         //U_[i] = sin ( cycles * X_[i] + travel);
     }
     getIdeal();
@@ -151,8 +154,10 @@ void SolvWidget::setCFL ( const double value )
 
 void SolvWidget::setSpeed ( const double value )
 {
-    double c;
-    c = value;
+    speed_ = value;
+    if( dx != 0.0 ) {
+      CFL = dt/dx;
+    }
 }
 
 void SolvWidget::setup ( const size_t size, const double cycles, const double cfl )
@@ -290,7 +295,8 @@ void SolvWidget::setEquation(int index) {
 void SolvWidget::setViscosity(double value) {
   if(value == visc_) return;
     visc_=value;
-    dirty=true;   
+    dirty=true;
+    
 }
 
 void SolvWidget::resize(int value) {
@@ -414,4 +420,12 @@ QwtPlotCurve* SolvWidget::getCurve(QString xvalue, QString value ) {
 
 void SolvWidget::setSize(const size_t size) {
     resize(size);
+}
+void SolvWidget::setTimeStep(const double value) {
+    if( dt == value ) return;
+    dt = value;
+    dirty = true;
+}
+double SolvWidget::getTimeStep() {
+    return dt;
 }

@@ -49,6 +49,7 @@ return this == &other;
 
 
 void Controls::setupUi() {
+    int gridrow;
     if (objectName().isEmpty())
         setObjectName(QString::fromUtf8("Controls"));
     //resize(304, 696);
@@ -77,19 +78,7 @@ void Controls::setupUi() {
 
     verticalLayout->addWidget(addSolvCombo);
 
-    sizeLabel = new QLabel(dockWidgetContents);
-    sizeLabel->setObjectName(QString::fromUtf8("sizeLabel"));
-
-    verticalLayout->addWidget(sizeLabel);
-
-    intNumberOfPoints = new MyIntInput(dockWidgetContents);
-    intNumberOfPoints->setObjectName(QString::fromUtf8("intNumberOfPoints"));
-    intNumberOfPoints->setMinimumWidth(30);
-    intNumberOfPoints->setMaximumWidth(222);
-    intNumberOfPoints->setValue(100);
-    //intNumberOfPoints->setMinimum(4);
-
-    verticalLayout->addWidget(intNumberOfPoints);
+    
 
     cyclesLabel = new QLabel(dockWidgetContents);
     cyclesLabel->setObjectName(QString::fromUtf8("cyclesLabel"));
@@ -106,17 +95,38 @@ void Controls::setupUi() {
 
     verticalLayout->addWidget(cyclesInput);
 
+    gridrow = 0;
     gridLayout = new QGridLayout();
     gridLayout->setObjectName(QString::fromUtf8("gridLayout"));
+    
+    speedLabel = new QLabel( tr("Speed"));
+    speedLabel->setObjectName(tr("speedLabel"));
+    gridLayout->addWidget(speedLabel, gridrow, 0, 1, Qt::AlignLeft);
+    
+    timeLabel = new QLabel( tr("Time Step"));
+    timeLabel->setObjectName(tr("timeLabel"));
+    gridLayout->addWidget(timeLabel, gridrow++, 1, 1, Qt::AlignLeft);
+    
+    speedInput = new MyDoubInput(dockWidgetContents);
+    speedInput->setObjectName(tr("speedInput"));
+    speedInput->setMinimumWidth(30);
+    speedInput->setMaximumWidth(111);
+    gridLayout->addWidget(speedInput, gridrow, 0, 1, Qt::AlignLeft);
+    
+    timeInput = new MyDoubInput(dockWidgetContents);
+    timeInput->setObjectName(tr("timeInput"));
+    timeInput->setMinimumWidth(30);
+    timeInput->setMaximumWidth(111);
+    gridLayout->addWidget(timeInput, gridrow++, 1, 1, Qt::AlignLeft);
+    
+    
     cflLabel = new QLabel(dockWidgetContents);
     cflLabel->setObjectName(QString::fromUtf8("cflLabel"));
-
-    gridLayout->addWidget(cflLabel, 0, 0, 1, 1);
+    gridLayout->addWidget(cflLabel, gridrow, 0, 1, Qt::AlignLeft);
 
     viscLabel = new QLabel(dockWidgetContents);
     viscLabel->setObjectName(QString::fromUtf8("viscLabel"));
-
-    gridLayout->addWidget(viscLabel, 0, 1, 1, 1);
+    gridLayout->addWidget(viscLabel, gridrow++, 1, 1, Qt::AlignLeft);
 
     cflInput = new MyDoubInput(dockWidgetContents);
     cflInput->setObjectName(QString::fromUtf8("cflInput"));
@@ -126,7 +136,7 @@ void Controls::setupUi() {
     //cflInput->setMinimum(-9999);
     //cflInput->setDecimals(4);
 
-    gridLayout->addWidget(cflInput, 1, 0, 1, 1);
+    gridLayout->addWidget(cflInput, gridrow, 0, 1, Qt::AlignLeft);
 
     viscInput = new MyDoubInput(dockWidgetContents);
     viscInput->setObjectName(QString::fromUtf8("viscInput"));
@@ -136,17 +146,27 @@ void Controls::setupUi() {
     //viscInput->setSingleStep(0.0001);
     //viscInput->setDecimals(4);
 
-    gridLayout->addWidget(viscInput, 1, 1, 1, 1);
+    gridLayout->addWidget(viscInput, gridrow++, 1, 1, Qt::AlignLeft);
+
+    sizeLabel = new QLabel(dockWidgetContents);
+    sizeLabel->setObjectName(QString::fromUtf8("sizeLabel"));
+    gridLayout->addWidget(sizeLabel, gridrow++, 0, 1, 2, Qt::AlignLeft);
+
+    intNumberOfPoints = new MyIntInput(dockWidgetContents);
+    intNumberOfPoints->setObjectName(QString::fromUtf8("intNumberOfPoints"));
+    intNumberOfPoints->setMinimumWidth(30);
+    intNumberOfPoints->setMaximumWidth(111);
+    intNumberOfPoints->setValue(100);
+    //intNumberOfPoints->setMinimum(4);   
+    gridLayout->addWidget(intNumberOfPoints, gridrow++, 0, 1, 2, Qt::AlignLeft);
 
     stepsLabel = new QLabel(dockWidgetContents);
     stepsLabel->setObjectName(QString::fromUtf8("stepsLabel"));
-
-    gridLayout->addWidget(stepsLabel, 2, 0, 1, 1);
+    gridLayout->addWidget(stepsLabel, gridrow, 0, 1, Qt::AlignLeft);
 
     incrementLabel = new QLabel(dockWidgetContents);
     incrementLabel->setObjectName(QString::fromUtf8("incrementLabel"));
-
-    gridLayout->addWidget(incrementLabel, 2, 1, 1, 1);
+    gridLayout->addWidget(incrementLabel, gridrow++, 1, 1, Qt::AlignLeft);
 
     intTimeSteps = new MyIntInput(dockWidgetContents);
     intTimeSteps->setObjectName(QString::fromUtf8("intTimeSteps"));
@@ -155,7 +175,7 @@ void Controls::setupUi() {
     intTimeSteps->setValue(100);
     //intTimeSteps->setMinimum(0);
 
-    gridLayout->addWidget(intTimeSteps, 3, 0, 1, 1);
+    gridLayout->addWidget(intTimeSteps, gridrow, 0, 1, Qt::AlignLeft);
 
     intPlotIncrement = new MyIntInput(dockWidgetContents);
     intPlotIncrement->setObjectName(QString::fromUtf8("intPlotIncrement"));
@@ -164,19 +184,19 @@ void Controls::setupUi() {
     intPlotIncrement->setValue(1);
     //intPlotIncrement->setMinimum(1);
 
-    gridLayout->addWidget(intPlotIncrement, 3, 1, 1, 1);
+    gridLayout->addWidget(intPlotIncrement, gridrow++, 1, 1, Qt::AlignLeft);
 
     label = new QLabel(dockWidgetContents);
     label->setObjectName(QString::fromUtf8("label"));
 
-    gridLayout->addWidget(label, 4, 0, 1, 1);
+    gridLayout->addWidget(label, gridrow, 0, 1, Qt::AlignLeft);
 
     plotDelayInput = new MyIntInput(dockWidgetContents);
     plotDelayInput->setObjectName(QString::fromUtf8("plotDelayInput"));
     plotDelayInput->setMinimumWidth(30);
     plotDelayInput->setMaximumWidth(111);
 
-    gridLayout->addWidget(plotDelayInput, 4, 1, 1, 1);
+    gridLayout->addWidget(plotDelayInput, gridrow++, 1, 1, Qt::AlignLeft);
 
 
     verticalLayout->addLayout(gridLayout);

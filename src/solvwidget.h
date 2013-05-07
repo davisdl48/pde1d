@@ -115,7 +115,9 @@ and in addSolver ( int index ) add the additionnal case, e.g.
         break;
 \endcode
 
-\todo make the new solver a shared object and load it with dlopen so pde1d does not need to be modified.
+\todo make a new class pdeEq with definitions from the pde equation,
+dt,dx,speed,visc,CFL,vstab,E,D,Jac,nEq,xMin,xMax, bc0, bc1, 
+ideal
 */
 class SolvWidget : public  QDockWidget
 {
@@ -142,8 +144,10 @@ public:
     const double getCFL();
     void setSpeed ( const double value = 1.0 );
     const double getSpeed();
+    void setTimeStep( const double value = 1.0 ) ;
+    double getTimeStep();
 
-    double * getX();
+    virtual double * getX();
     virtual double * getU();
     double * getIdeal();
 
@@ -211,6 +215,8 @@ protected:
     double speed_;
     double dt;
     double dx;
+    double xmin_;
+    double xmax_;
     double CFL;
     double cycles;
     int cStep;

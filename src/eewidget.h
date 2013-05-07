@@ -37,8 +37,9 @@ where \f$ x_i \f$ is the i<sup>th</sup> x point and \f$ t_n \f$ is the n<sup>th<
 \f$ \delta t \f$ with a small \f$ \Delta t \f$ on the right side and solving for 
 \f$ u(x_i,t_n + \Delta t ) \f$ an approximation for the value of \f$ u \f$ at the new time
 can be obtained.
-\f[ u(x_i,t_n + \Delta t ) = u(x_i,t_{n}) + \Delta t \frac{ \partial u }{ \partial t } \f]
+\f[ u_i^{n+1} = u(x_i,t_n + \Delta t ) = u(x_i,t_{n}) + \Delta t \frac{ \partial u }{ \partial t } \f]
 
+<!-- \image html burger.png "Temporary Burgers' Equation Image" -->
 \par Time Component 
 
 The Euler Explicit method uses the partial derivative with respect to time at the current
@@ -46,19 +47,19 @@ time to predict the value at the next time step, that is
 \f[ u_i^{n+1} = u_i^{n} + \Delta t u_t \f]
 where \f$ u_i^{n+1} \f$ is notation for \f$ u(x_i,t_n + \Delta t) \f$ and \f$ u_t \f$
 is shorthand notation for \f$ \frac{ \partial u }{ \partial t } \f$.  Thoughout this discusion
-subscripts of t or x will represent partial derivatives while supscripts of i or k will represent 
-indecies.
+subscripts of \f$t\f$ or \f$x\f$ will represent partial derivatives while supscripts
+of \f$i, n\f$ or \f$k\f$ will represent indecies.
  
-The temporal partial derivative, \f$ u_t \f$ , is solved from the partial differential equation(PDE).
-Where the spacial derivatives are also approximated from finite differences.
+The temporal partial derivative, \f$ u_t \f$ , is solved from the
+partial differential equation(PDE).  Where the spacial derivatives are approximated from finite differences.
  
 \par Spacial Components
  
 The spacial components used here all assume uniform spacing, \f$ \Delta x \f$.
 The first spacial derivatives \f$ \frac{\partial u}{\partial x} \equiv u_x \f$ are
 approximated as upwind differences based on the sign of it's coefficient.  That is
-\f$ c u_x \approx c \left( \frac { u_i - u_{i-1} }{\Delta x} \right) \f$ if c is positive and
-\f$ c u_x \approx c \left( \frac { u_{i+1} - u_{i} }{\Delta x} \right) \f$ if c is negative.
+\f$ c u_x \approx c \left( \frac { u_i - u_{i-1} }{\Delta x} \right) \f$ if \f$c\f$ is positive and
+\f$ c u_x \approx c \left( \frac { u_{i+1} - u_{i} }{\Delta x} \right) \f$ if \f$c\f$ is negative.
 Another way to express this is 
 \f[ c u_x \approx \frac{c}{2 \Delta x} ( u_{i+1} - u_{i-1} ) + \frac{|c|}{2 \Delta x} 
  ( -u_{i+1} + 2 u_i -u_{i-1} ) \f] 
@@ -70,19 +71,34 @@ For second derivative terms, a central difference is used,
 \par Advection/Diffusion Equation
  
 Substituting the above approximations into the Advection/Diffusion equation, 
-\f$ u_t + c u_x = \nu u_xx \f$ , results in
-\f{eqnarray*}{ u_i^{n+1} = u_i^{n} + \Delta t &(& -\frac{c}{2 \Delta x} ( u_{i+1} - u_{i-1} ) \\
-&& \quad - \frac{|c|}{2 \Delta x}  ( -u_{i+1} + 2 u_i -u_{i-1} ) 
- + \nu \frac { u_{i+1} - 2 u_i + u_{i-1} }{ \Delta x^2 } \\
-   &)& \f}
+\f$ u_t + c u_x = \nu u_{xx} \f$ , results in
+\f{eqnarray*}{ u_i^{n+1} = u_i^{n} + \Delta t &(& -\frac{c}{2 \Delta x} ( u_{i+1} - u_{i-1} )
+ - \frac{|c|}{2 \Delta x}  ( -u_{i+1} + 2 u_i -u_{i-1} )  \\
+&& \quad + \nu \frac { u_{i+1} - 2 u_i + u_{i-1} }{ \Delta x^2 } \: \: ) \f}
 or combining a few terms give the difference equation
 \f{eqnarray*}{   u_i^{n+1} = u_i^{n} + \frac{\Delta t}{\Delta x}  &(& \frac{-c}{2} ( u_{i+1} - u_{i-1} ) \\
- && \quad +( \frac{\nu}{\Delta x} + \frac{|c|}{2} )  ( u_{i+1} - 2 u_i + u_{i-1} ) \\
-   &)& \f}.  
+ && \quad +( \frac{\nu}{\Delta x} + \frac{|c|}{2} )  ( u_{i+1} - 2 u_i + u_{i-1} )  \f}.  
 \note The term with \f$ |c| \f$ is added to the diffusion term, \f$ \nu \f$ , which shows that 
 upwinding has the same form as adding additional diffusion.  The 'nulimit' option described
-below reduces \f$ \nu \f$ to account for this dissipation.
- 
+below reduces \f$ \nu \f$ to account for this artificial dissipation.
+
+If \f$x\f$ is not uniform, a coordinant transformation resulting in 
+\f$ \Delta x = \frac { x_{i+1} - x_{i-1} }{2} \f$ is used.  The derivation
+follows.
+
+Using the uniform computational domain \f$ \xi \f$ with increments of 1, 
+\f$ \Delta \xi = 1 \$ there is a transformation from the physical domain to the computational domain.
+The dependent variable, \f$u\f$ is written as a function of the computational coordinant, \f$\xi\f$ and 
+the computational coordinant is a function of the physical coordinant.  Then from the chain rule
+\f[ \frac{ \partial u }{ \partial x} = \frac { \partial u}{\partial \xi} \frac{\partial \xi}{\partial x} \: .\f]
+Computing the partial derivative of \f$\xi\f$ directly is difficult, but computing
+\f$ \frac{\partial x}{\partial \xi }\f$ from central finite differences results in
+\f[ \frac{\partial x}{\partial \xi } = \frac{ x_{i+1} - x_{i-1}}{ \xi_{i+1} - \xi_{i-1}} = \frac{ x_{i+1} - x_{i-1}}{2} \: .\f]
+The inverse operation of \f$ \frac{\partial x}{\partial \xi } \f$ is then
+\f[ \frac{\partial \xi}{\partial x } = \frac{2}{ x_{i+1} - x_{i-1}} \f]
+which results in the \f$ \Delta x = \frac { x_{i+1} - x_{i-1} }{2} \f$ above.
+
+
 \par Finite Volume Form
 
 In one dimension we will call the line from midpoints \f$ x_{i-1/2} \f$ to \f$ x_{i+1/2} \f$ 
@@ -378,10 +394,14 @@ public:
 	/** indicate whether equation number equ can be solved in this class
 	*/
 	virtual bool canSolve(int equ);
-
+	
+    virtual double * getX() { return data.value(tr("X"));}
+    virtual double * getU() { return data.value(tr("U"));}
 protected:
-  double *f;
   
+	void advection( const int nStep ) ;
+	
+	void burger(const int nStep ) ;
   double upwind; /// degree of upwinding for convection, 0 = central, 1.0 = 1st order upwind
   bool nulimit; /// if true, reduce nu to account for upwind effective viscosity
   bool finVol; /// if true, use finite volume form of Burgers' Equation, \f$ u \, u_x \f$ vs \f$ 1/2 (u^2)_x \f$

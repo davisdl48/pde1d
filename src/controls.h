@@ -65,8 +65,12 @@ public:
     QLabel *cyclesLabel;
     MyDoubInput *cyclesInput;
     QGridLayout *gridLayout;
+    QLabel *speedLabel;
+    QLabel *timeLabel;
     QLabel *cflLabel;
     QLabel *viscLabel;
+    MyDoubInput *speedInput;
+    MyDoubInput *timeInput;
     MyDoubInput *cflInput;
     MyDoubInput *viscInput;
     QLabel *stepsLabel;
@@ -74,6 +78,7 @@ public:
     MyIntInput *intTimeSteps;
     MyIntInput *intPlotIncrement;
     QLabel *label;
+    QSpacerItem *verticalSpacer_1;
     MyIntInput *plotDelayInput;
     QPushButton *savePlotButton;
     QPushButton *saveImageButton;

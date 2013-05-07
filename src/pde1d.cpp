@@ -565,11 +565,11 @@ void pde1d::setEquation(int value) {
 void pde1d::setViscosity(double value) {
     if(visc == value ) return;
     visc=value;
+    control->viscInput->setValue(visc);
     if ( eeWidgets.empty() ) return;
     for ( size_t i = 0; i < eeWidgets.size(); i++ ) {
         eeWidgets[i]->setViscosity ( value);
     }
-    control->viscInput->setValue(visc);
 }
 
 void pde1d::addIt(SolvWidget* solver) {
